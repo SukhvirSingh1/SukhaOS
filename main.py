@@ -31,7 +31,7 @@ class SukhaOS:
             btn.pack(fill="x", padx=10, pady=5)
 
     def switch_page(self, page_name):
-        # This function clears the content area and shows the new page
+    
         for widget in self.content_area.winfo_children():
             widget.destroy()
         
@@ -60,15 +60,16 @@ class SukhaOS:
         
 
     def load_expense_ui(self):
-        # You can move your previous expense GUI code here!
+        
         tk.Label(self.content_area, text="Total Spent: ₹0", bg="#ecf0f1").pack()
         tk.Button(self.content_area, text="Add Expense").pack(pady=10)
         
     def Skill_functions_ui(self):
-        # ... (Clear widgets code) ...
-
-        # 1. Create a transparent "Button Bar"
-        # This acts as a container for our two buttons
+        for widget in self.content_area.winfo_children():
+            widget.destroy()
+            
+        tk.Label(self.content_area,text="SKILL MENU",font=("Arial",18,"bold")).pack(pady=20)
+            
         button_bar = tk.Frame(self.content_area, bg="#ecf0f1")
         button_bar.pack(fill="x", pady=(100, 20)) 
 
@@ -88,9 +89,45 @@ class SukhaOS:
         
         
     def main_skill_ui(self):
-        exit
+        for widget in self.content_area.winfo_children():
+            widget.destroy()
+            
+        tk.Label(self.content_area,text="SKILL DASHBOARD",font=("Roboto",20,"bold"),
+                 bg="#ecf0f1", fg="#2c3e50").pack(pady=30)
+        
+        
+        option_frame  = tk.Frame(self.content_area, bg="#ecf0f1")
+        option_frame.pack(pady=10)
+        
+        btn_add = tk.Button(option_frame,text="➕ ADD SKILL",font=("Arial",12,"bold"),
+                            bg="#27ae60",fg="white",width=25,pady=10,borderwidth=0,cursor="hand2",
+                            command=self.add_skill_ui).pack(pady=10)
+        
+        btn_view = tk.Button(option_frame,text="📊 VIEW SKILL",font=("Arial",12,"bold"),
+                             bg="#2980b9",fg="white",width=25,pady=10,borderwidth=0,cursor="hand2",
+                             command=self.view_skill_ui).pack(pady=10)
+        
+        btn_update = tk.Button(option_frame,text="🔄 UPDATE SKILL",font=("Roboto", 12, "bold"),
+                  bg="#f39c12", fg="white", width=25, pady=10, borderwidth=0, 
+                  activebackground="#e67e22", cursor="hand2", 
+                  command=self.update_skill_ui).pack(pady=10)
+        
+        btn_back = tk.Button(self.content_area,text="← Back to main menu",font=("Arial",10),
+                             bg="#95a5a6", fg="white",borderwidth=0, cursor="hand2",
+                             command=self.Skill_functions_ui).pack(side="bottom",pady=20)
+        
+        
     def side_skill_ui(self):
         exit
+        
+    def add_skill_ui(self):
+        print("comming soon!!")
+        exit
+    def view_skill_ui(self):
+        print("comming soon!!")
+        exit
+    def update_skill_ui(self):
+        print("comming soon!!")
 # Run the app
 if __name__ == "__main__":
     root = tk.Tk()
