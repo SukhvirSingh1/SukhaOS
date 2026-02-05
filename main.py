@@ -181,12 +181,12 @@ class SukhaOS:
     def save_skill_ui(self):
             skill_name = self.name_entry.get()
             skill_hour = self.hour_entry.get()
-            today = date.today().strftime("%Y-%m-%d") # Use lowercase %d for day
+            today = date.today().strftime("%Y-%m-%d")
             default_streak = 0
         
             if skill_name and skill_hour.isdigit():
                 try:
-                # FIX: Removed '9=' and fixed the placeholders
+                
                     self.cur.execute('''INSERT INTO main_skill(name, hour, streak, last_day) 
                                    VALUES (?, ?, ?, ?)''',
                                 (skill_name, float(skill_hour), default_streak, today))
@@ -204,8 +204,76 @@ class SukhaOS:
         
         
     def view_skill_ui(self):
-        print("comming soon!!")
-        exit
+        self.clear_content()
+        
+        tk.Label(self.content_area,text="YOUR SKILLS",
+                  font=("Helvetica", 22, "bold"), bg="#ecf0f1", fg="#2c3e50").pack(pady=(30, 10))      
+        
+        search_frame = tk.Frame(self.content_area,bg="#ecf0f1")
+        search_frame.pack(pady=10)
+        
+        self.cur.execute("SELECT name FROM main_skill")
+        skill_list =[rows[0] for rows in self.cur.fetchall()]
+        
+        if not skill_list:
+            tk.Label(search_frame,text="No skill found,Add one first",
+                     bg="#ecf0f1",fg="#e74c3c",font=("Arial",12)).pack(pady=20)
+            
+        selection_frame = tk.Frame(self.content_area,bg="#ecf0f1")
+        selection_frame.pack(pady=20)
+        
+        tk.Label(selection_frame,text="SELECT YOUR SKILL:",font=("Arial",11),bg="#ecf0f1").pack(pady=5)
+        
+        self.dropdown_box = ttk.Combobox(selection_frame,values=skill_list,font=("Arial",11),state="readonly")
+        self.dropdown_box.pack(pady=10)
+        self.dropdown_box.set("Choose a skill...")
+        
+        btn_inspect = tk.Button(self.content_area,text="VIEW DATA",font=("Roboto",10,"bold")
+                                ,bg="#2980b9",fg="white",borderwidth=0,padx=40,pady=10,cursor="hand2",
+                                command=self.specific_skill_ui).pack(pady=10)
+        tk.Button(self.content_area,text="←Back",command=self.main_skill_ui,borderwidth=0).pack(side="bottom",pady=20)
+        
+    def specific_skill_ui(self):
+        target_name = self.dropdown_box.get()
+        
+        if target_name == "Choose a skill...":
+            return
+        
+        
+        
+        self.clear_content()
+        
+        try:
+            self.cur.execute("SELECT name, hour, streak, last_day FROM main_skill where name = ?",(target_name,))
+            data = self.cur.fetchone()
+            
+            if data:
+                card = tk.Frame(self.content_area,bg="white",highlightthickness=1,padx=40,pady=40,highlightbackground="#bdc3c7")
+                card.pack(padx=30)
+                
+                tk.Label(card,text=data[0].upper(),font=("Helvetica",12,"bold"),bg="white",fg="#007ACC").pack(pady=(0,20))
+                
+                stats = tk.Frame(card,bg="white")
+                stats.pack()
+                
+                tk.Label(stats, text="Total Hours Practiced:", bg="white", font=("Arial", 12)).grid(row=0, column=0, sticky="e", pady=5)
+                tk.Label(stats, text=f"{data[1]} hrs", bg="white", font=("Arial", 12, "bold")).grid(row=0, column=1, sticky="w", padx=10)
+
+                tk.Label(stats, text="Current Day Streak:", bg="white", font=("Arial", 12)).grid(row=1, column=0, sticky="e", pady=5)
+                tk.Label(stats, text=f"🔥 {data[2]} Days", bg="white", font=("Arial", 12, "bold"), fg="#e67e22").grid(row=1, column=1, sticky="w", padx=10)
+
+                tk.Label(stats, text="Last Logged On:", bg="white", font=("Arial", 12)).grid(row=2, column=0, sticky="e", pady=5)
+                tk.Label(stats, text=data[3], bg="white", font=("Arial", 12, "italic")).grid(row=2, column=1, sticky="w", padx=10)
+            else:
+                tk.Label(self.content_area, text="No data found for this skill.", fg="red").pack(pady=20)
+                
+        except Exception as e:
+            print(f"Error:{e}")
+            
+        tk.Button(self.content_area, text="← New Search", command=self.view_skill_ui, borderwidth=0).pack(pady=20)
+        
+        
+        
     def update_skill_ui(self):
         print("comming soon!!")
     def dlt_skill_ui(self):
