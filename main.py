@@ -16,7 +16,7 @@ class SukhaOS:
         self.cur = self.conn.cursor()
         
         self.cur.execute('''CREATE TABLE IF NOT EXISTS main_skill
-                    (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, hour REAL, streak TEXT,last_day TEXT)''')
+                    (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, hour REAL, streak TEXT,last_day TEXT, level INTEGER DEFAULT 1, xp DEFAULT 0)''')
         
         self.conn.commit()     
 
@@ -274,8 +274,41 @@ class SukhaOS:
         
         
         
-    def update_skill_ui(self):
-        print("comming soon!!")
+    def update_skill_ui(self, skill_name, added_hours):
+        today = date.today().strftime("%Y-%m-%d")
+        
+        self.cur.execute("SELECT name, hour, streak, last_day, level, xp FROM main_skill WHERE name = ?",(skill_name,))
+        h, s, ld, lvl, xp = self.cur.fetchone()
+        
+        new_hour = h + added_hours
+        new_xp = xp + (added_hours * 10)
+        
+        new_streak = s
+        if ld != today:
+            new_streak = s + 1
+            
+        xp_needed = 100 * lvl
+        if new_xp > xp_needed:
+            lvl += 1
+            new_xp = 0
+            print(f"LEVEL UP! You are now Level {lvl}")
+            
+        self.cur.execute("UPDATE main_skill SET hour=?, streak=?, last_day=?, level=?, xp=? WHERE name=?",(new_hour, new_streak, today, lvl, new_xp, skill_name))
+        self.conn.commit()
+        
+        
+        style = ttk.Style()
+        style.theme_use('default')
+        style.configure("green.Horizontal.TProgressbar", backgorund ='#27ae6')
+        
+        self.progress = ttk.Progressbar(card, orient="horizontal", length=200,
+                                        mode="determinate",style="green.Horizontal.TProgressbar")
+        
+        self.progress.pack(pady=10)
+        
+        self.progress['Value'] = (current_xp / (lvl * 100)) * 100
+            
+            
     def dlt_skill_ui(self):
         print("comming soon!!")
 # Run the app
