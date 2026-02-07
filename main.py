@@ -2,8 +2,11 @@ import tkinter as tk
 from tkinter import ttk
 import sqlite3
 from datetime import date
+import os
+
 
 db = "SukhaOS.db"
+print("DB PATH:", os.path.abspath(db))
 class SukhaOS:
     def __init__(self, root):
         self.root = root
@@ -244,10 +247,13 @@ class SukhaOS:
         self.clear_content()
         
         try:
-            self.cur.execute("SELECT name, hour, streak, last_day FROM main_skill where name = ?",(target_name,))
+            self.cur.execute("SELECT name, hour, streak, last_day, level, xp FROM main_skill where name = ?",(target_name,))
             data = self.cur.fetchone()
             
             if data:
+                lvl = data[4]
+                xp = data[5]
+                xp_needed = lvl * 100
                 card = tk.Frame(self.content_area,bg="white",highlightthickness=1,padx=40,pady=40,highlightbackground="#bdc3c7")
                 card.pack(padx=30)
                 
@@ -264,6 +270,23 @@ class SukhaOS:
 
                 tk.Label(stats, text="Last Logged On:", bg="white", font=("Arial", 12)).grid(row=2, column=0, sticky="e", pady=5)
                 tk.Label(stats, text=data[3], bg="white", font=("Arial", 12, "italic")).grid(row=2, column=1, sticky="w", padx=10)
+                
+                tk.Label(card, text=f"LEVEL {lvl}", font=("Helvetica", 14, "bold"), 
+                 bg="#f1c40f", fg="#2c3e50", padx=10).pack(pady=5)
+                
+                progress_frame = tk.Frame(card, bg="white")
+                progress_frame.pack(pady=10)
+        
+                tk.Label(progress_frame, text=f"XP: {int(xp)} / {xp_needed}", bg="white", font=("Arial", 10)).pack()
+        
+                style = ttk.Style()
+                style.theme_use('default')
+                style.configure("green.Horizontal.TProgressbar", background='#2ecc71', thickness=20)
+        
+                pb = ttk.Progressbar(progress_frame, length=200, style="green.Horizontal.TProgressbar", 
+                             mode='determinate')
+                pb.pack()
+                pb['value'] = (xp / xp_needed) * 100
             else:
                 tk.Label(self.content_area, text="No data found for this skill.", fg="red").pack(pady=20)
                 
@@ -274,39 +297,87 @@ class SukhaOS:
         
         
         
-    def update_skill_ui(self, skill_name, added_hours):
+    def update_skill_ui(self):
+        self.clear_content()
+        
+        
+        # GUI for updating skill
+        
+        tk.Label(self.content_area,text="UPDATE YOUR SKILL",font=("Helvetica",22,"bold"),
+                  bg="#ecf0f1", fg="#2c3e50").pack(pady=20)
+        
+        self.cur.execute("SELECT name FROM main_skill")
+        skill_list = [row[0] for row in self.cur.fetchall()]
+        
+        if not skill_list:
+            tk.Label(self.content_area,text="NO skill YEt!! ADD ONE FISRT",fg="red").pack
+            return
+        
+        selection_frame = tk.Frame(self.content_area,bg="#ecf0f1")
+        selection_frame.pack(pady=10)
+        
+        self.update_dropdown = ttk.Combobox(selection_frame,values=skill_list,state="readonly",font=("Arial",12))
+        self.update_dropdown.pack(pady=10)
+        self.update_dropdown.set("Choose a skill...")
+        
+        action_frame = tk.Frame(self.content_area,bg="white",padx=30,pady=30
+                                ,highlightthickness=1,highlightbackground="#bdc3c7")
+        action_frame.pack(pady=20)
+
+        tk.Button(action_frame,text="🕒 ADD +1 HOUR",font=("Roboto",12,"bold"),
+                                                          bg="#27ae60",fg="white",width=20,borderwidth=0,pady=10,cursor="hand2",
+                                                          command=lambda: self.process_update(1.0)).pack(pady=10)
+        
+        tk.Label(action_frame, text="OR add custom hours:", font=("Arial",10),bg="white").pack()
+        self.custom_hour = tk.Entry(action_frame, font=("Arial", 12), width=10, justify="center")
+        self.custom_hour.pack(pady=5)
+        self.custom_hour.insert(0, "0")
+        
+        tk.Button(action_frame,text="✅ UPDATE CUSTOM",font=("Roboto",10),
+                  bg="#2980b9",fg="white",width=15,
+                  command=lambda: self.process_update(float(self.custom_hour.get()))).pack(pady=5)
+        
+        tk.Button(self.content_area, text="← Back", command=self.main_skill_ui, borderwidth=0).pack(side="bottom", pady=20)
+        
+        
+        
+        
+        
+        
+    def process_update(self,added_hours):
+        target_name = self.update_dropdown.get()
+        if target_name == "Choose a skill...":
+            return
+        
         today = date.today().strftime("%Y-%m-%d")
         
-        self.cur.execute("SELECT name, hour, streak, last_day, level, xp FROM main_skill WHERE name = ?",(skill_name,))
-        h, s, ld, lvl, xp = self.cur.fetchone()
+        try:
+            self.cur.execute("SELECT hour, streak, last_day, level, xp FROM main_skill WHERE name=?",(target_name,)) 
+            h, s, ld, lvl, xp = self.cur.fetchone()
         
-        new_hour = h + added_hours
-        new_xp = xp + (added_hours * 10)
-        
-        new_streak = s
-        if ld != today:
-            new_streak = s + 1
+            new_hour = h + added_hours
+            new_xp = xp + (added_hours * 10)    
+            new_streak = s + 1 if ld != today else s
             
-        xp_needed = 100 * lvl
-        if new_xp > xp_needed:
-            lvl += 1
-            new_xp = 0
-            print(f"LEVEL UP! You are now Level {lvl}")
+            xp_needed = lvl * 100
+            levelup = False
             
-        self.cur.execute("UPDATE main_skill SET hour=?, streak=?, last_day=?, level=?, xp=? WHERE name=?",(new_hour, new_streak, today, lvl, new_xp, skill_name))
-        self.conn.commit()
-        
-        
-        style = ttk.Style()
-        style.theme_use('default')
-        style.configure("green.Horizontal.TProgressbar", backgorund ='#27ae6')
-        
-        self.progress = ttk.Progressbar(card, orient="horizontal", length=200,
-                                        mode="determinate",style="green.Horizontal.TProgressbar")
-        
-        self.progress.pack(pady=10)
-        
-        self.progress['Value'] = (current_xp / (lvl * 100)) * 100
+            while new_xp >= xp_needed:
+                new_xp -= xp_needed
+                lvl += 1
+                xp_needed = lvl * 100
+                levelup = True
+                
+            self.cur.execute("UPDATE main_skill SET hour=?, streak=?, last_day=?, level=?, xp=?  WHERE name=?",
+                             (new_hour, new_streak, today, lvl, new_xp, target_name))
+            self.conn.commit()
+            
+            if levelup:
+                print(f"CONGRATS! {target_name} is now Level {lvl}")
+                
+            self.main_skill_ui()
+        except Exception as e:
+            print(f"Error Updating: {e}")
             
             
     def dlt_skill_ui(self):
