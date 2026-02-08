@@ -19,7 +19,7 @@ class SukhaOS:
         self.cur = self.conn.cursor()
         
         self.cur.execute('''CREATE TABLE IF NOT EXISTS main_skill
-                    (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, hour REAL, streak TEXT,last_day TEXT, level INTEGER DEFAULT 1, xp DEFAULT 0)''')
+                    (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, hour REAL, streak TEXT,last_day TEXT, level INTEGER DEFAULT 1, xp REAL DEFAULT 0)''')
         
         self.conn.commit()     
 
@@ -381,7 +381,60 @@ class SukhaOS:
             
             
     def dlt_skill_ui(self):
-        print("comming soon!!")
+        self.clear_content()
+        
+        tk.Label(self.content_area, text="DELETE SKILL",font=("Helvetica",22,"bold"),
+                 pady=10,bg="#ecf0f1",fg="#2c3e50").pack(pady=20)
+        
+        delete_frame = tk.Frame(self.content_area,bg="#ecf0f1")
+        delete_frame.pack()
+        
+        self.cur.execute("SELECT name FROM main_skill")
+        delete_name =[rows[0] for rows in self.cur.fetchall()]
+        
+        self.delete_dropdown = ttk.Combobox(delete_frame,values=delete_name,state="readonly",font=("Arial",12))
+        self.delete_dropdown.pack(pady=20)
+        self.delete_dropdown.set("Choose a skill...")
+        
+        tk.Button(delete_frame,text="DELETE SKILL",font=("Roboto",12,"bold"),
+                  bg="red",fg="white",width=25,activebackground="#8B0000",cursor="hand2",
+                  command=self.delete_skill_ui).pack(pady=10)
+        
+        tk.Button(delete_frame,text="RESET STREAK",font=("Roboto",12,"bold"),
+                  bg="yellow",fg="white",width=25,activebackground="#BA8E23",cursor="hand2",
+                  command=self.reset_streak_ui).pack(pady=10)
+        
+        tk.Button(delete_frame,text="RESET HOUR",font=("Roboto",12,"bold"),
+                  bg="orange",fg="white",width=25,activebackground="#BA8E23",cursor="hand2",
+                  command=self.reset_hour_ui).pack(pady=10)
+        
+        tk.Button(delete_frame,text="<--back",command=self.main_skill_ui).pack(side="bottom",pady=10)
+        
+        
+    def delete_skill_ui(self):
+        target_name = self.delete_dropdown.get()
+        if not target_name:
+            return
+        
+        popup = tk.Toplevel(self.content_area)
+        popup.title("Confirmation")
+        popup.geometry("300x150")
+        popup.grab_set()
+        tk.Label(popup, text="ARE YOU SURE",font=("Arial",12)).pack(pady=20)
+        tk.Button(popup,text="YES",command=self.final_delete ,bg="green",font=("Arial")).pack(side="left",padx=30,pady=30)
+        tk.Button(popup,text="NO",command=lambda: popup.destroy(),bg="red",font=("Arial")).pack(side="right",padx=30,pady=30)
+    def final_delete(self):
+        target_name = self.delete_dropdown.get()
+        self.cur.execute("DELETE FROM main_skill WHERE name=?",(target_name,))
+        self.conn.commit()
+        
+        self.main_skill_ui()
+            
+            
+    def reset_streak_ui(self):
+        pass
+    def reset_hour_ui(self):
+        pass
 # Run the app
 if __name__ == "__main__":
     root = tk.Tk()
