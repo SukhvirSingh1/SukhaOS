@@ -432,9 +432,52 @@ class SukhaOS:
             
             
     def reset_streak_ui(self):
-        pass
+        target_name = self.delete_dropdown.get()
+        if not target_name:
+            return
+        
+        try:
+            popup = tk.Toplevel(self.content_area)
+            popup.title("Confirmation")
+            popup.geometry("350x150")
+            
+            tk.Label(popup,text="ARE YOU SURE",font=("Arial",12)).pack(pady=20)
+            
+            tk.Button(popup,text=("YES"),font=("Arial"),bg="green",command=self.final_reset).pack(side="left",padx=30,pady=30)
+            tk.Button(popup,text=("NO"),font=("Arial"),bg="red",command=lambda: popup.destroy()).pack(side="right",padx=30,pady=30)
+            
+        except Exception as e:
+            print(f"Error! {e}")
+    def final_reset(self):
+        target_name = self.delete_dropdown.get()
+        self.cur.execute("UPDATE main_skill SET streak=? WHERE name=?",(0,target_name))
+        self.conn.commit()
+        
+        self.main_skill_ui()
+        
     def reset_hour_ui(self):
-        pass
+        target_name = self.delete_dropdown.get()
+        if not target_name:
+            return
+        
+        try:
+            popup = tk.Toplevel(self.content_area)
+            popup.title("Confirmation")
+            popup.geometry("350x150")
+            
+            tk.Label(popup,text="ARE YOU SURE",font=("Arial",12)).pack(pady=20)
+            
+            tk.Button(popup,text=("YES"),font=("Arial"),bg="green",command=self.hour_reset).pack(side="left",padx=30,pady=30)
+            tk.Button(popup,text=("NO"),font=("Arial"),bg="red",command=lambda: popup.destroy()).pack(side="right",padx=30,pady=30)
+            
+        except Exception as e:
+            print(f"Error! {e}")
+    def hour_reset(self):
+        target_name = self.delete_dropdown.get()
+        self.cur.execute("UPDATE main_skill SET hour=? WHERE name=?",(0,target_name))
+        self.conn.commit()
+        
+        self.main_skill_ui()
 # Run the app
 if __name__ == "__main__":
     root = tk.Tk()
