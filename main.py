@@ -478,6 +478,21 @@ class SukhaOS:
         self.conn.commit()
         
         self.main_skill_ui()
+        
+class health_ui(self):
+    
+    # functions in healh menu
+    def workout(self):
+        pass
+    def health_status(self):
+        pass
+    def steps_tracker(self):
+        pass
+    
+    # GUI of health menu
+    
+health = health_ui()
+    
 # Run the app
 if __name__ == "__main__":
     root = tk.Tk()
