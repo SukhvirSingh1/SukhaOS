@@ -478,8 +478,25 @@ class SukhaOS:
         self.conn.commit()
         
         self.main_skill_ui()
+
+    def side_skill():
+        pass
+    
+    def add_skill():
+        pass
+    
+    def view_skill():
+        pass
+    
+    def update_skill():
+        pass
         
-class health_ui(self):
+    def delete_skill():
+        pass
+        
+class health_ui():
+    
+
     
     # functions in healh menu
     def workout(self):
