@@ -12,14 +12,16 @@ class SukhaOS:
         self.root = root
         self.root.title("Sukha OS - Level Up")
         self.root.geometry("800x500")
+        
+        self.current_type = "main"  # To track if we're in main or side skill section
         self.init_database()
         
     def init_database(self):
         self.conn =sqlite3.connect(db)
         self.cur = self.conn.cursor()
         
-        self.cur.execute('''CREATE TABLE IF NOT EXISTS main_skill
-                    (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, hour REAL, streak TEXT,last_day TEXT, level INTEGER DEFAULT 1, xp REAL DEFAULT 0)''')
+        self.cur.execute('''CREATE TABLE IF NOT EXISTS Skills
+                    (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, hour REAL, streak TEXT,last_day TEXT, level INTEGER DEFAULT 1, xp REAL DEFAULT 0, type TEXT)''')
         
         self.conn.commit()     
 
@@ -51,11 +53,11 @@ class SukhaOS:
         for widget in self.content_area.winfo_children():
             widget.destroy()
         
-        # Heading for the page
+        
         tk.Label(self.content_area, text=f"{page_name} Section", 
                  font=("Arial", 20), bg="#ecf0f1").pack(pady=20)
         
-        # Logic to call your features
+        
         if page_name == "Skill":
             self.Skill_functions_ui()
         elif page_name == "Mind":
@@ -96,20 +98,22 @@ class SukhaOS:
         btn_main = tk.Button(button_bar, text="Main Skill", font=("Roboto", 12, "bold"),
                            bg="#007ACC", fg="white", activebackground="#005A99",
                            padx=20, pady=10, borderwidth=0, cursor="hand2",
-                           command=self.main_skill_ui)
+                           command=lambda: self.main_skill_ui("main"))
         btn_main.pack(side="left", padx=100) 
 
         
         btn_side = tk.Button(button_bar, text="Side Skill", font=("Roboto", 12, "bold"),
                            bg="#007ACC", fg="white", activebackground="#005A99",
                            padx=20, pady=10, borderwidth=0, cursor="hand2",
-                           command=self.side_skill_ui)
+                           command=lambda: self.main_skill_ui("side"))
         btn_side.pack(side="right", padx=100) 
         
         
-    def main_skill_ui(self):
+    def main_skill_ui(self, skill_type=None):
         for widget in self.content_area.winfo_children():
             widget.destroy()
+            
+        
             
         tk.Label(self.content_area,text="SKILL DASHBOARD",font=("Roboto",20,"bold"),
                  bg="#ecf0f1", fg="#2c3e50").pack(pady=30)
@@ -141,9 +145,7 @@ class SukhaOS:
                              command=self.Skill_functions_ui).pack(side="bottom",pady=20)
         
         
-        
-    def side_skill_ui(self):
-        exit
+     
         
     def add_skill_ui(self):
        
@@ -190,9 +192,9 @@ class SukhaOS:
             if skill_name and skill_hour.isdigit():
                 try:
                 
-                    self.cur.execute('''INSERT INTO main_skill(name, hour, streak, last_day) 
-                                   VALUES (?, ?, ?, ?)''',
-                                (skill_name, float(skill_hour), default_streak, today))
+                    self.cur.execute('''INSERT INTO skills(name, hour, streak, last_day, type) 
+                                   VALUES (?, ?, ?, ?, ?)''',
+                                (skill_name, float(skill_hour), default_streak, today, self.current_type))
                     self.conn.commit()
                 
                     print(f"SUCCESS: {skill_name} saved to SukhaOS on {today}")
@@ -215,7 +217,7 @@ class SukhaOS:
         search_frame = tk.Frame(self.content_area,bg="#ecf0f1")
         search_frame.pack(pady=10)
         
-        self.cur.execute("SELECT name FROM main_skill")
+        self.cur.execute("SELECT name FROM skills WHERE tpye=?",(self.current_type,))
         skill_list =[rows[0] for rows in self.cur.fetchall()]
         
         if not skill_list:
@@ -247,7 +249,7 @@ class SukhaOS:
         self.clear_content()
         
         try:
-            self.cur.execute("SELECT name, hour, streak, last_day, level, xp FROM main_skill where name = ?",(target_name,))
+            self.cur.execute("SELECT name, hour, streak, last_day, level, xp FROM skills WHERE name = ? ANDtype =?",(target_name,self.current_type,))
             data = self.cur.fetchone()
             
             if data:
@@ -306,7 +308,7 @@ class SukhaOS:
         tk.Label(self.content_area,text="UPDATE YOUR SKILL",font=("Helvetica",22,"bold"),
                   bg="#ecf0f1", fg="#2c3e50").pack(pady=20)
         
-        self.cur.execute("SELECT name FROM main_skill")
+        self.cur.execute("SELECT name FROM skills WHERE type=?",(self.current_type,))
         skill_list = [row[0] for row in self.cur.fetchall()]
         
         if not skill_list:
@@ -352,7 +354,7 @@ class SukhaOS:
         today = date.today().strftime("%Y-%m-%d")
         
         try:
-            self.cur.execute("SELECT hour, streak, last_day, level, xp FROM main_skill WHERE name=?",(target_name,)) 
+            self.cur.execute("SELECT hour, streak, last_day, level, xp FROM skills WHERE name=? AND type=?",(target_name,self.current_type)) 
             h, s, ld, lvl, xp = self.cur.fetchone()
         
             new_hour = h + added_hours
@@ -368,8 +370,8 @@ class SukhaOS:
                 xp_needed = lvl * 100
                 levelup = True
                 
-            self.cur.execute("UPDATE main_skill SET hour=?, streak=?, last_day=?, level=?, xp=?  WHERE name=?",
-                             (new_hour, new_streak, today, lvl, new_xp, target_name))
+            self.cur.execute("UPDATE skills SET hour=?, streak=?, last_day=?, level=?, xp=?  WHERE name=? AND type=?",
+                             (new_hour, new_streak, today, lvl, new_xp, target_name,self.current_type,))
             self.conn.commit()
             
             if levelup:
@@ -389,7 +391,7 @@ class SukhaOS:
         delete_frame = tk.Frame(self.content_area,bg="#ecf0f1")
         delete_frame.pack()
         
-        self.cur.execute("SELECT name FROM main_skill")
+        self.cur.execute("SELECT name FROM skills WHERE type=?",(self.current_type,))
         delete_name =[rows[0] for rows in self.cur.fetchall()]
         
         self.delete_dropdown = ttk.Combobox(delete_frame,values=delete_name,state="readonly",font=("Arial",12))
@@ -425,7 +427,7 @@ class SukhaOS:
         tk.Button(popup,text="NO",command=lambda: popup.destroy(),bg="red",font=("Arial")).pack(side="right",padx=30,pady=30)
     def final_delete(self):
         target_name = self.delete_dropdown.get()
-        self.cur.execute("DELETE FROM main_skill WHERE name=?",(target_name,))
+        self.cur.execute("DELETE FROM skills WHERE name=? AND type=?",(target_name,self.current_type,))
         self.conn.commit()
         
         self.main_skill_ui()
@@ -450,7 +452,7 @@ class SukhaOS:
             print(f"Error! {e}")
     def final_reset(self):
         target_name = self.delete_dropdown.get()
-        self.cur.execute("UPDATE main_skill SET streak=? WHERE name=?",(0,target_name))
+        self.cur.execute("UPDATE skills SET streak=? WHERE name=? AND type=?",(0,target_name,self.current_type,))
         self.conn.commit()
         
         self.main_skill_ui()
@@ -474,27 +476,13 @@ class SukhaOS:
             print(f"Error! {e}")
     def hour_reset(self):
         target_name = self.delete_dropdown.get()
-        self.cur.execute("UPDATE main_skill SET hour=? WHERE name=?",(0,target_name))
+        self.cur.execute("UPDATE skills SET hour=? WHERE name=? AND type=?",(0,target_name,self.current_type,))
         self.conn.commit()
         
         self.main_skill_ui()
 
-    def side_skill():
-        pass
-    
-    def add_skill():
-        pass
-    
-    def view_skill():
-        pass
-    
-    def update_skill():
-        pass
-        
-    def delete_skill():
-        pass
-        
-class health_ui():
+   
+ 
     
 
     
@@ -506,9 +494,7 @@ class health_ui():
     def steps_tracker(self):
         pass
     
-    # GUI of health menu
-    
-health = health_ui()
+  
     
 # Run the app
 if __name__ == "__main__":
