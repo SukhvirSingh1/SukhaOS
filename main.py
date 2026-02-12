@@ -73,7 +73,7 @@ class SukhaOS:
         elif page_name == "Expense":
             self.load_expense_ui()
         elif page_name == "Health":
-            tk.Label(self.content_area, text="Workout Tracker Coming Soon!", bg="#ecf0f1").pack()
+            self.health_function_ui()
         
         #  for clearing page
     def clear_content(self):
@@ -480,22 +480,21 @@ class SukhaOS:
         self.conn.commit()
         
         self.main_skill_ui()
-
-   
- 
     
-
-    
-    # functions in healh menu
-    def workout(self):
-        pass
-    def health_status(self):
-        pass
-    def steps_tracker(self):
-        pass
-    
-  
-    
+    def health_function_ui(self):
+        self.clear_content()
+        tk.Label(self.content_area,text="HEALTH MENU",bg="#ecf0f1",font=("Arial",22,"bold")).pack(pady=30)
+        
+        tk.Button(self.content_area,text="WORKOUT",bg="#e74c3c",font=("Roboto",18,"bold"),borderwidth=0
+                  ,command=self.workout_ui).pack(pady=10)
+        
+        tk.Button(self.content_area,text="STEPS",bg="#8e44ad",font=("Roboto",18,"bold"),borderwidth=0,
+                  command=self.steps_ui)
+        
+        def workout_ui(self):
+            pass
+        def steps_ui(self):
+            pass
 # Run the app
 if __name__ == "__main__":
     root = tk.Tk()
