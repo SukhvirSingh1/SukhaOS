@@ -485,16 +485,29 @@ class SukhaOS:
         self.clear_content()
         tk.Label(self.content_area,text="HEALTH MENU",bg="#ecf0f1",font=("Arial",22,"bold")).pack(pady=30)
         
-        tk.Button(self.content_area,text="WORKOUT",bg="#e74c3c",font=("Roboto",18,"bold"),borderwidth=0
+        tk.Button(self.content_area,text="WORKOUT",bg="#e74c3c",width=25,font=("Roboto",15,"bold"),borderwidth=0
                   ,command=self.workout_ui).pack(pady=10)
         
-        tk.Button(self.content_area,text="STEPS",bg="#8e44ad",font=("Roboto",18,"bold"),borderwidth=0,
-                  command=self.steps_ui)
+        tk.Button(self.content_area,text="STEPS",bg="#8e44ad",width=25,font=("Roboto",15,"bold"),borderwidth=0,
+                  command=self.steps_ui).pack(pady=10)
         
-        def workout_ui(self):
-            pass
-        def steps_ui(self):
-            pass
+        tk.Button(self.content_area,text="HEALTH STATUS",bg="green",width=25,font=("Roboto",15,"bold"),borderwidth=0,
+                  command=self.health_status_ui).pack(pady=10)
+        
+        tk.Button(self.content_area,text="ACHIEVEMNT",width=25,bg="orange",font=("Roboto",15,"bold"),borderwidth=0,
+                  command=self.achievement_ui).pack(pady=10)
+        
+    def workout_ui(self):
+        self.content_area()
+        tk.Label()
+        
+        tk.Frame()
+    def steps_ui(self):
+        pass
+    def health_status_ui(self):
+        pass
+    def achievement_ui(self):
+        pass
 # Run the app
 if __name__ == "__main__":
     root = tk.Tk()
