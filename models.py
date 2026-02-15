@@ -1,4 +1,4 @@
-class skill:
+class Skill:
     def __init__(self, name, hour=0, streak=0, level=1,xp=0):
         self.name = name
         self.hour = hour

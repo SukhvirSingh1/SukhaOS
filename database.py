@@ -1,8 +1,8 @@
 import _sqlite3
 
 class Database:
-    def __init__(self, db_name):
-        self.conn = _sqlite3.connect(db_name)
+    def __init__(self):
+        self.conn = _sqlite3.connect("SukhaOS.db")
         self.cursor = self.conn.cursor()
         self.create_table()
         
