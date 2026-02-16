@@ -6,7 +6,7 @@ class SukhaOS:
     def __init__(self, root):
         self.root = root
         self.root.title("SukhaOS")
-        self.root.geometry("800x850")
+        self.root.geometry("1000x550")
         
         self.db = Database()
         
