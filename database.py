@@ -31,7 +31,8 @@ class Database:
                 description TEXT,
                 period TEXT,
                 oxp INTEGER DEFAULT 0,
-                gold INTEGER DEFAULT 0
+                gold INTEGER DEFAULT 0,
+                status TEXT DEFAULT "Pending"
             )
         ''')
         cursor.execute('''
@@ -41,6 +42,11 @@ class Database:
                     sxp INTEGER DEFAULT 0
             )
         ''')
+        
+        cursor.execute("SELECT COUNT(*) FROM player")
+        count = cursor.fetchone()[0]
+        if count == 0:
+            cursor.execute("INSERT INTO player (id, oxp, level, gold) VALUES (1, 0, 1, 0)")
 
         self.conn.commit()
         
@@ -49,16 +55,16 @@ class Database:
         cursor.execute("SELECT * FROM player LIMIT 1")
         row = cursor.fetchone()
         if row is None:
-            cursor.execute("INSERT INTO player (oxp, level, gold) VALUES (1, 0, 1, 0)")
+            cursor.execute("INSERT INTO player (id, oxp, level, gold) VALUES (1, 0, 1, 0)")
         return {"id": row[0], "oxp": row[1], "level": row[2], "gold": row[3]}
     
     def get_task(self, task_id):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT * FROM task WHERE id=?", (task_id,))
+        cursor.execute("SELECT id, title, description, period, oxp, gold, status FROM task WHERE id=?", (task_id,))
         row = cursor.fetchone()
         if row is None:
-            raise ValueError(f"Task with ID {task_id} not found")
-        return {"id": row[0], "title": row[1], "description": row[2], "period": row[3], "oxp": row[4], "gold": row[5]}
+            raise None
+        return {"id": row[0], "title": row[1], "description": row[2], "period": row[3], "oxp": row[4], "gold": row[5], "status": row[6]}
     
     def get_task_rewards(self, task_id):
         cursor = self.conn.cursor()
@@ -89,3 +95,19 @@ class Database:
         
     def commit(self):
         self.conn.commit()
+        
+    def get_tasks_by_period(self, period):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT id, title, description, status FROM task WHERE period=?", (period,))
+        
+        rows = cursor.fetchall()
+        
+        
+        return [{"id": row[0], "title": row[1], "description": row[2], "period": period, "status": row[3]} for row in rows]
+    
+    def mark_task_completed(self, task_id):
+        cursor = self.conn.cursor()
+        cursor.execute("UPDATE task SET status='Completed' WHERE id=?", (task_id,))
+        self.conn.commit()
+        
+    

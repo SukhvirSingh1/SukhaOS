@@ -6,6 +6,11 @@ class GameEngine:
     def complete_task(self, task_id):   
         task = self.db.get_task(task_id)
         player = self.db.get_player()
+        
+        if task["status"] == "Completed":
+            return  # Task already completed
+        
+        self.db.mark_task_completed(task_id)
     
         
         player["gold"] += task["gold"]

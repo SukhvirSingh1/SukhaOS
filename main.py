@@ -2,6 +2,7 @@
 
 from database import Database
 from layout import SkillUI
+from game_engine import GameEngine
 import tkinter as tk
 from tkinter import ttk
 
@@ -12,8 +13,11 @@ class SukhaOS:
         self.root.geometry("1000x550")
         
         self.db = Database()
+        self.engine = GameEngine(self.db)
         
-        self.skill_ui = SkillUI(self.root, self.db)
+        self.skill_ui = SkillUI(self.root, self.db, self.engine)
+        
+
         
         
         
