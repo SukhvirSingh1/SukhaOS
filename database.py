@@ -32,8 +32,8 @@ class Database:
                 period TEXT,
                 oxp INTEGER DEFAULT 0,
                 gold INTEGER DEFAULT 0,
-                status TEXT DEFAULT "Pending"
-            )
+                status TEXT DEFAULT "Pending",
+                last_completed TEXT            )
         ''')
         cursor.execute('''
                 CREATE TABLE IF NOT EXISTS task_reward (
@@ -56,6 +56,9 @@ class Database:
         row = cursor.fetchone()
         if row is None:
             cursor.execute("INSERT INTO player (id, oxp, level, gold) VALUES (1, 0, 1, 0)")
+            self.conn.commit()
+            cursor.execute("SELECT * FROM player LIMIT 1")
+            row = cursor.fetchone()
         return {"id": row[0], "oxp": row[1], "level": row[2], "gold": row[3]}
     
     def get_task(self, task_id):
@@ -106,8 +109,43 @@ class Database:
         return [{"id": row[0], "title": row[1], "description": row[2], "period": period, "status": row[3]} for row in rows]
     
     def mark_task_completed(self, task_id):
+        from datetime import date
+        today = date.today().isoformat()
+        
         cursor = self.conn.cursor()
-        cursor.execute("UPDATE task SET status='Completed' WHERE id=?", (task_id,))
+        cursor.execute("UPDATE task SET status='Completed', last_completed=? WHERE id=?", (today, task_id))
         self.conn.commit()
         
-    
+    def reset_tasks(self):
+        from datetime import date,datetime
+        today = date.today()
+        cursor = self.conn.cursor()
+        
+        cursor.execute("SELECT id, period, last_completed FROM task")
+        tasks = cursor.fetchall()
+        
+        for task_id, period, last_completed in tasks:
+            
+            if last_completed is None:
+                continue
+            
+            last_date = datetime.strptime(last_completed, "%Y-%m-%d").date()
+            
+            reset = False
+            if period == "daily":
+               reset = last_date != today
+               
+            elif period == "weekly":
+                reset = last_date.isocalendar()[1] != today.isocalendar()[1]\
+                    or last_date.year != today.year
+                    
+            elif period == "monthly":
+                reset = last_date.month != today.month \
+                    or last_date.year != today.year
+            
+            elif period == "yearly":
+                reset = last_date.year != today.year
+                
+            if reset:
+                cursor.execute("UPDATE task SET status='Pending' WHERE id=?", (task_id,))
+        self.conn.commit()

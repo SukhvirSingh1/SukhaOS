@@ -17,6 +17,8 @@ class SukhaOS:
         
         self.skill_ui = SkillUI(self.root, self.db, self.engine)
         
+        self.db.reset_tasks()  # Reset daily tasks on startup
+        
 
         
         

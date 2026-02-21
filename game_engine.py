@@ -9,8 +9,6 @@ class GameEngine:
         
         if task["status"] == "Completed":
             return  # Task already completed
-        
-        self.db.mark_task_completed(task_id)
     
         
         player["gold"] += task["gold"]
@@ -24,6 +22,7 @@ class GameEngine:
             
             
         self.check_player_level_up(player)
+        self.mark_task_completed(task_id)
         self.db.update_player(player)
         self.db.commit()
         
