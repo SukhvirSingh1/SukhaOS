@@ -25,6 +25,20 @@ class SkillUI:
         info_frame = tk.Frame(self.root, bg="#00254d", bd=2, relief="ridge")
         info_frame.grid(row=0, column=1, sticky="nsew")
         
+        self.level_label = tk.Label(info_frame, 
+                                    text="Character lvl 1",
+                                    bg="#00254d",
+                                    fg="#E0E0E0",
+                                    font=("Arial", 16, "bold"))
+        self.level_label.pack(pady=20)
+        
+        self.gold_label = tk.Label(info_frame,
+                                    text="Gold: 0",
+                                    bg="#00254d",
+                                    fg="gold",
+                                    font=("Arial", 12))
+        self.gold_label.pack()
+        
 
         # --- 3. Bottom Frame (Whole Bottom) ---
         tasks_frame = tk.Frame(self.root, bg="#001833", bd=2, relief="ridge")
@@ -72,6 +86,7 @@ class SkillUI:
                 
         
         self.switch_menu("daily")
+        self.refresh_player_ui()
     
 
 
@@ -147,9 +162,17 @@ class SkillUI:
             else:
                 btn.config(bg="#003366")
                 
+    def refresh_player_ui(self):
+        player = self.db.get_player()
+        self.level_label.config(
+            text=f"Character lvl {player['level']} | OXP: {player['oxp']}")
+        self.gold_label.config(text=f"Gold: {player['gold']}")
+        
     def complete_task(self, task_id):
         self.engine.complete_task(task_id)
+        self.refresh_player_ui()
         self.show_tasks(self.current_period)
+        
                 
  
         

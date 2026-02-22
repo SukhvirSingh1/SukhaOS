@@ -13,11 +13,11 @@ class SukhaOS:
         self.root.geometry("1000x550")
         
         self.db = Database()
-        self.engine = GameEngine(self.db)
+        self.db.reset_tasks()  # Reset daily tasks on startup
         
+        self.engine = GameEngine(self.db)
         self.skill_ui = SkillUI(self.root, self.db, self.engine)
         
-        self.db.reset_tasks()  # Reset daily tasks on startup
         
 
         

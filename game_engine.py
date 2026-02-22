@@ -22,20 +22,27 @@ class GameEngine:
             
             
         self.check_player_level_up(player)
-        self.mark_task_completed(task_id)
+        self.db.mark_task_completed(task_id)
         self.db.update_player(player)
         self.db.commit()
         
     def check_player_level_up(self, player):
-        required = player["level"] * 100
-        while player["oxp"] >= required:
-            player["oxp"] -= required
-            player["level"] += 1
-            required = player["level"] * 100
+        while True:
+            required = 100 + (player["level"] - 1) * 50
+            if player["oxp"] >= required:
+                player["oxp"] -= required
+                player["level"] += 1
+            else:
+                break
+            print(f"Player leveled up! New level: {player['level']}, OXP: {player['oxp']}")
     
     def check_skill_level_up(self, skill):
-        required = skill["level"] * 50
-        while skill["xp"] >= required:
-            skill["xp"] -= required
-            skill["level"] += 1
-            required = skill["level"] * 50
+        while True:
+            required = 50 + (skill["level"] - 1) * 25
+            
+            if skill["xp"] >= required:
+                skill["xp"] -= required
+                skill["level"] += 1
+            else:
+                break
+            print(f"Skill {skill['name']} leveled up! New level: {skill['level']}, XP: {skill['xp']}")
