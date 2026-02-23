@@ -30,14 +30,20 @@ class SkillUI:
                                     bg="#00254d",
                                     fg="#E0E0E0",
                                     font=("Arial", 16, "bold"))
-        self.level_label.pack(pady=20)
+        self.level_label.grid(row=0, column=0, pady=20)
+        info_frame.rowconfigure(0, weight=0)
+        info_frame.rowconfigure(1, weight=0)
+        info_frame.rowconfigure(2, weight=0)
+        info_frame.rowconfigure(3, weight=0)
+        info_frame.columnconfigure(0, weight=1)
+
         
         self.gold_label = tk.Label(info_frame,
                                     text="Gold: 0",
                                     bg="#00254d",
                                     fg="gold",
                                     font=("Arial", 12))
-        self.gold_label.pack()
+        self.gold_label.grid(row=1, column=0, pady=(0, 15))
         
 
         # --- 3. Bottom Frame (Whole Bottom) ---
@@ -83,7 +89,29 @@ class SkillUI:
         for i in range(2):
             self.task_container.grid_rowconfigure(i, weight=1)
             self.task_container.grid_columnconfigure(i, weight=1)
-                
+            
+        style = ttk.Style()
+        style.theme_use('clam')
+        style.configure("TProgressbar",
+                        troughcolor="#001833",
+                        background="#00ccff",
+                        thickness=18,
+                        bordercolor="#001833",
+                        lightcolor="#00ccff",
+                        darkcolor="#00ccff")
+            
+        self.xp_label = tk.Label(tasks_frame,
+                                 text="0 / 100 OXP",
+                                 bg="#001833",
+                                 font=("Arial", 9,"bold"),
+                                 fg="#aaaaaa")
+        self.xp_label.grid(row=3, column=0,)
+        
+        self.xp_bar = ttk.Progressbar(info_frame,
+                                            orient="horizontal",
+                                            mode="determinate",
+                                            style="XP.Horizontal.TProgressbar")
+        self.xp_bar.grid(row=3, column=0, padx=40, sticky="ew",pady=(10,2))
         
         self.switch_menu("daily")
         self.refresh_player_ui()
@@ -148,6 +176,9 @@ class SkillUI:
                 task["description"],
                 task["status"]
         )
+            
+    def get_required_oxp(self, level):
+        return 100 + (level - 1) * 50
     
     
     def switch_menu(self, period):
@@ -164,9 +195,41 @@ class SkillUI:
                 
     def refresh_player_ui(self):
         player = self.db.get_player()
+        
+        required = self.get_required_oxp(player["level"])
+        current_xp = player["oxp"]
+        
+        
         self.level_label.config(
-            text=f"Character lvl {player['level']} | OXP: {player['oxp']}")
-        self.gold_label.config(text=f"Gold: {player['gold']}")
+            text=f"Character lvl {player['level']}")
+        self.gold_label.config(
+            text=f"Gold: {player['gold']}")
+        self.xp_label.config(
+            text=f"{current_xp} / {required} OXP")
+        
+        self.xp_bar["maximum"] = required
+        self.animate_bar(current_xp)
+        
+        if player["level"] >= 5:
+            color = "#00ccff"
+        elif player["level"] >= 10:
+            color = "#00ff88"
+        else:
+            color = "#ffcc00"
+        
+        style = ttk.Style()
+        style.theme_use('clam')    
+        style.configure("XP.Horizontal.TProgressbar",
+                        background=color,
+                        lightcolor=color,
+                        darkcolor=color)
+        
+    def animate_bar(self, target):
+        current = self.xp_bar["value"]
+        if current < target:
+            self.xp_bar["value"] = current + 1
+            self.root.after(5, lambda: self.animate_bar(target))
+        
         
     def complete_task(self, task_id):
         self.engine.complete_task(task_id)
