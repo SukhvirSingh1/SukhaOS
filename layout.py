@@ -20,6 +20,21 @@ class SkillUI:
         chrctr_frame = tk.Frame(self.root, bg="#00254d", bd=2, relief="ridge")
         chrctr_frame.grid(row=0, column=0, sticky="nsew")
         
+        self.skill_title = tk.Label(
+            chrctr_frame,
+            text="Skills",
+            bg="#00254d",
+            fg="#E0E0E0",
+            font=("Arial", 14, "bold")
+        )
+        self.skill_title.grid(row=0, column=0, pady=(20,10))
+        
+        self.skills_container = tk.Frame(chrctr_frame, bg="#00254d")
+        self.skills_container.grid(row=1, column=0, sticky="nsew", padx=10)
+        
+        chrctr_frame.rowconfigure(1, weight=1)
+        chrctr_frame.columnconfigure(0, weight=1)
+        
 
         # --- 2. Top Right Frame (70%) ---
         info_frame = tk.Frame(self.root, bg="#00254d", bd=2, relief="ridge")
@@ -115,6 +130,43 @@ class SkillUI:
         
         self.switch_menu("daily")
         self.refresh_player_ui()
+        self.refresh_skill_ui()
+        
+    # skill layout
+    
+    def refresh_skill_ui(self):
+        
+        for widget in self.skills_container.winfo_children():
+            widget.destroy()
+            
+        skills = self.db.get_all_skills()
+        
+        if not skills:
+            tk.Label(
+                self.skills_container,
+                text="No skills yet",
+                bg="#00254d",
+                fg="#E0E0E0",
+                font=("Arial", 10)
+            ).grid(row=0, column=0)
+            return
+        
+        for index, skill in enumerate(skills):
+            required = self.get_required_sxp(skill["level"])
+            
+            skill_text =(
+                f"{skill['name']} | Lv {skill['level']} "
+                f"{skill['xp']} / {required}"
+            )
+            
+            tk.Label(
+                self.skills_container,
+                text=skill_text,
+                bg="#00254d",
+                fg="#E0E0E0",
+                anchor="w",
+                font=("Arial", 10)
+            ).grid(row=index, column=0, sticky="ew",pady=3)
     
 
 
@@ -180,6 +232,9 @@ class SkillUI:
     def get_required_oxp(self, level):
         return 100 + (level - 1) * 50
     
+    def get_required_sxp(self, level):
+        return 50 + (level - 1) * 25
+    
     
     def switch_menu(self, period):
         self.current_period = period
@@ -232,8 +287,9 @@ class SkillUI:
         
         
     def complete_task(self, task_id):
-        self.engine.complete_task(task_id)
+        player = self.engine.complete_task(task_id)
         self.refresh_player_ui()
+        self.refresh_skill_ui()
         self.show_tasks(self.current_period)
         
                 

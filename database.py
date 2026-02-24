@@ -173,6 +173,15 @@ class Database:
                 cursor.execute("UPDATE task SET status='Pending' WHERE id=?", (task_id,))
         self.conn.commit()
         
+    def get_all_skills(self):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT name, xp, level FROM skill")
+        rows = cursor.fetchall()     
+        
+        return[
+            {"name":r[0],"xp":r[1],"level":r[2]}
+            for r in rows
+        ]
 
 
        

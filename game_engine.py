@@ -19,6 +19,7 @@ class GameEngine:
             skill = self.db.get_skill(reward["skill_name"])
             skill["xp"] += reward["sxp"]
             self.check_skill_level_up(skill)
+            self.db.update_skill(skill)
             
             
         self.check_player_level_up(player)
