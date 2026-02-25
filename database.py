@@ -47,30 +47,6 @@ class Database:
         count = cursor.fetchone()[0]
         if count == 0:
             cursor.execute("INSERT INTO player (id, oxp, level, gold) VALUES (1, 0, 1, 0)")
-            
-        # test data for tasks and rewards
-
-        cursor.execute("SELECT COUNT(*) FROM task")
-        task_count = cursor.fetchone()[0]
-
-        if task_count == 0:
-            cursor.execute("""
-        INSERT INTO task (id, title, description, period, oxp, gold)
-        VALUES
-        (1, 'Read 30 mins', 'Read book or study material', 'daily', 20, 20),
-        (2, 'Workout', 'Complete workout session', 'daily', 30, 25),
-        (3, 'Weekly Review', 'Reflect and plan week', 'weekly', 50, 40),
-        (4, 'Monthly Goal Check', 'Review monthly goals', 'monthly', 100, 80)
-    """)
-
-            cursor.execute("""
-        INSERT INTO task_reward (task_id, skill_name, sxp)
-        VALUES
-        (1, 'Mind', 10),
-        (2, 'Health', 15),
-        (3, 'Discipline', 25),
-        (4, 'Strategy', 40)
-    """)
         self.conn.commit()
         
     def get_player(self):
@@ -182,6 +158,23 @@ class Database:
             {"name":r[0],"xp":r[1],"level":r[2]}
             for r in rows
         ]
+        
+    def add_task(self, title, description, period, oxp, gold):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+                       INSERT INTO task(title, description, period, oxp, gold, status)
+                       VALUES(?, ?, ?, ? ,?, 'Pending')
+        """,(title, description, period, oxp, gold))
+        self.conn.commit()
+        return cursor.lastrowid
+    
+    def add_task_reward(self, task_id, skill_name, sxp):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+                    INSERT INTO task_reward(task_id, skill_name, sxp)
+                    VALUES(?, ?, ?)
+                    """,(task_id, skill_name, sxp))
+        self.conn.commit()
 
 
        
