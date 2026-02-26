@@ -47,3 +47,18 @@ class GameEngine:
             else:
                 break
             print(f"Skill {skill['name']} leveled up! New level: {skill['level']}, XP: {skill['xp']}")
+            
+            
+class GameEngine:     
+    def get_period_rewards(self, period):
+        PERIOD_REWARDS = {
+            "daily": {"gold": 20, "oxp": 20, "sxp": 10},
+            "weekly": {"gold": 50, "oxp": 60, "sxp": 25},
+            "monthly": {"gold": 120, "oxp": 150, "sxp": 60},
+            "yearly": {"gold": 500, "oxp": 500, "sxp": 200}
+            }  
+    def __init__(self, database):
+        self.db = database
+    
+    def get_period_rewards(self, period):
+        return GameEngine.PERIOD_REWARDS.get(period)

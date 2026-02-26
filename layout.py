@@ -2,6 +2,13 @@
 import tkinter as tk
 from tkinter import ttk
 
+PERIOD_REWARDS = {
+            "daily": {"gold": 20, "oxp": 20, "sxp": 10},
+            "weekly": {"gold": 50, "oxp": 60, "sxp": 25},
+            "monthly": {"gold": 120, "oxp": 150, "sxp": 60},
+            "yearly": {"gold": 500, "oxp": 500, "sxp": 200}
+            }  
+
 class SkillUI:
     def __init__(self,root,db,engine):
         self.root = root
@@ -59,6 +66,14 @@ class SkillUI:
                                     fg="gold",
                                     font=("Arial", 12))
         self.gold_label.grid(row=1, column=0, pady=(0, 15))
+        
+        self.add_task_button = tk.Button(info_frame,
+                                          text="Add Task",
+                                          bg="#003366",
+                                          fg="#E0E0E0",
+                                          font=("Arial", 12, "bold"),
+                                          command=self.open_add_task_popup)
+        self.add_task_button.grid(row=2, column=0, pady=(0, 15))
         
 
         # --- 3. Bottom Frame (Whole Bottom) ---
@@ -167,7 +182,7 @@ class SkillUI:
                 anchor="w",
                 font=("Arial", 10)
             ).grid(row=index, column=0, sticky="ew",pady=3)
-    
+            
 
 
 
@@ -279,6 +294,58 @@ class SkillUI:
                         lightcolor=color,
                         darkcolor=color)
         
+    def open_add_task_popup(self):
+        popup = tk.Toplevel(self.root)
+        popup.title("Add New Task")
+        popup.geometry("400x400")
+        
+        tk.Label(popup, text="Title:", bg="#00254d", fg="#E0E0E0").grid(row=0, column=0, pady=5)
+        title_entry = tk.Entry(popup)
+        title_entry.grid(row=0, column=1)
+        
+        tk.Label(popup, text="Description:", bg="#00254d", fg="#E0E0E0").grid(row=1, column=0, pady=5)
+        desc_entry = tk.Entry(popup)
+        desc_entry.grid(row=1, column=1)
+        
+        tk.Label(popup, text="Period:", bg="#00254d", fg="#E0E0E0").grid(row=2, column=0, pady=5)
+        period_var = tk.StringVar(value="daily")
+        period_menu = ttk.Combobox(popup,
+                                   textvariable=period_var,
+                                   values=["daily", "weekly", "monthly", "yearly"], state="readonly")
+        period_menu.grid(row=2, column=1)
+        
+        tk.Label(popup, text="Skill 1",bg = "#00254d", fg="#E0E0E0").grid(row=3, column=0)
+        skills = [skill["name"] for skill in self.db.get_all_skills()]
+        skill1_var = tk.StringVar()      
+        skill1_entry = ttk.Combobox(popup, values=skills, textvariable=skill1_var, state="readonly")
+        skill1_entry.grid(row=3, column=1)
+        
+        
+        
+        tk.Label(popup, text="Skill 2 (OPTIONAL)",bg = "#00254d", fg="#E0E0E0").grid(row=4, column=0)
+        skill2_var = tk.StringVar()
+        skill2_entry = ttk.Combobox(popup, values=skills, textvariable=skill2_var, state="readonly")
+        skill2_entry.grid(row=4, column=1)
+        
+        def save_task():
+            title = title_entry.get()
+            description = desc_entry.get()
+            period = period_var.get()
+            
+            rewards = PERIOD_REWARDS.get(period)
+    
+           
+               
+            
+            task_id = self.db.add_task(title, description, period, rewards["oxp"], rewards["gold"])
+            self.db.add_task_reward(task_id, skill1_entry.get(), rewards["sxp"])
+            if skill2_entry.get():
+                self.db.add_task_reward(task_id, skill2_entry.get(), rewards["sxp"])
+            popup.destroy()
+            self.show_tasks(self.current_period)
+            
+        tk.Button(popup, text="Save Task", command=save_task).grid(row=5, column=0, columnspan=2, pady=20)
+        
     def animate_bar(self, target):
         current = self.xp_bar["value"]
         if current < target:
@@ -291,6 +358,7 @@ class SkillUI:
         self.refresh_player_ui()
         self.refresh_skill_ui()
         self.show_tasks(self.current_period)
+        
         
                 
  

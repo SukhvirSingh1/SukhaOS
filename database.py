@@ -47,6 +47,11 @@ class Database:
         count = cursor.fetchone()[0]
         if count == 0:
             cursor.execute("INSERT INTO player (id, oxp, level, gold) VALUES (1, 0, 1, 0)")
+        
+        default_skills = ["Mind","Health","Strength","IQ","Programming",
+                          "Editing"]
+        for skill in default_skills:
+            cursor.execute("INSERT OR IGNORE INTO skill (name, xp, level) VALUES (?, 0, 1)", (skill,))
         self.conn.commit()
         
     def get_player(self):
