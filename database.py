@@ -33,7 +33,8 @@ class Database:
                 oxp INTEGER DEFAULT 0,
                 gold INTEGER DEFAULT 0,
                 status TEXT DEFAULT "Pending",
-                last_completed TEXT            )
+                last_completed TEXT ,
+                Streak INTEGER DEFAULT 0)
         ''')
         cursor.execute('''
                 CREATE TABLE IF NOT EXISTS task_reward (
@@ -67,11 +68,11 @@ class Database:
     
     def get_task(self, task_id):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, title, description, period, oxp, gold, status FROM task WHERE id=?", (task_id,))
+        cursor.execute("SELECT id, title, description, period, oxp, gold, status,last_completed,streak FROM task WHERE id=?", (task_id,))
         row = cursor.fetchone()
         if row is None:
             raise None
-        return {"id": row[0], "title": row[1], "description": row[2], "period": row[3], "oxp": row[4], "gold": row[5], "status": row[6]}
+        return {"id": row[0], "title": row[1], "description": row[2], "period": row[3], "oxp": row[4], "gold": row[5], "status": row[6], "last_completed": row[7], "streak": row[8]}
     
     def get_task_rewards(self, task_id):
         cursor = self.conn.cursor()
@@ -105,12 +106,12 @@ class Database:
         
     def get_tasks_by_period(self, period):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, title, description, status FROM task WHERE period=?", (period,))
+        cursor.execute("SELECT id, title, description, status, streak FROM task WHERE period=?", (period,))
         
         rows = cursor.fetchall()
         
         
-        return [{"id": row[0], "title": row[1], "description": row[2], "period": period, "status": row[3]} for row in rows]
+        return [{"id": row[0], "title": row[1], "description": row[2], "period": period, "status": row[3], "streak": row[4]} for row in rows]
     
     def mark_task_completed(self, task_id):
         from datetime import date
@@ -179,6 +180,11 @@ class Database:
                     INSERT INTO task_reward(task_id, skill_name, sxp)
                     VALUES(?, ?, ?)
                     """,(task_id, skill_name, sxp))
+        self.conn.commit()
+        
+    def update_task_streak(self, task_id, streak):
+        cursor = self.conn.cursor()
+        cursor.execute("UPDATE task SET streak=? WHERE id=?", (streak, task_id))
         self.conn.commit()
 
 

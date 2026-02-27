@@ -21,9 +21,30 @@ class GameEngine:
             self.check_skill_level_up(skill)
             self.db.update_skill(skill)
             
+        from datetime import date,datetime
+        today = date.today()
+        last_completed = task.get("last_completed")
+        new_streak = 1
+        
+        if last_completed:
+            last_date = datetime.strptime(last_completed, "%Y-%m-%d").date()
+            
+            if task["period"] == "daily":
+                if (today - last_date).days == 1:
+                    new_streak = task["streak"] + 1
+                    
+            elif task["period"] == "weekly":
+                if today.isocalendar()[1] - last_date.isocalendar()[1] == 1:
+                    new_streak = task["streak"] + 1
+                    
+            if new_streak % 7 ==0:
+                player["oxp"] += 50
+                print(f"Streak bonus! Player earned 50 OXP for a {new_streak}-day streak.")
+            
             
         self.check_player_level_up(player)
         self.db.mark_task_completed(task_id)
+        self.db.update_task_streak(task_id, new_streak)
         self.db.update_player(player)
         self.db.commit()
         
@@ -49,16 +70,3 @@ class GameEngine:
             print(f"Skill {skill['name']} leveled up! New level: {skill['level']}, XP: {skill['xp']}")
             
             
-class GameEngine:     
-    def get_period_rewards(self, period):
-        PERIOD_REWARDS = {
-            "daily": {"gold": 20, "oxp": 20, "sxp": 10},
-            "weekly": {"gold": 50, "oxp": 60, "sxp": 25},
-            "monthly": {"gold": 120, "oxp": 150, "sxp": 60},
-            "yearly": {"gold": 500, "oxp": 500, "sxp": 200}
-            }  
-    def __init__(self, database):
-        self.db = database
-    
-    def get_period_rewards(self, period):
-        return GameEngine.PERIOD_REWARDS.get(period)

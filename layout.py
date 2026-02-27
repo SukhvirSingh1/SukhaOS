@@ -188,7 +188,7 @@ class SkillUI:
 
         
         
-    def create_task_card(self, row, col, task_id, title, description, status):
+    def create_task_card(self, row, col, task_id, title, description, status, streak):
         
         card = tk.Frame(self.task_container, bg="#003366", bd=0)
         card.grid(row=row, column=col, padx=15, pady=15, sticky="nsew")
@@ -219,6 +219,15 @@ class SkillUI:
                         cursor="hand2")
 
         status_label.grid(row=2, column=1, sticky="e", padx=10, pady=(5, 10))
+        
+        # streak
+        
+        tk.Label(card,
+                 text=f"Streak:{streak}",
+                 bg="#003366",
+                 fg ="orange",
+                font=("Arial", 9, "italic")
+                ).grid(row=0, column=2, padx=10)
 
 # Bind click event
         status_label.bind("<Button-1>", lambda e, tid=task_id: self.complete_task(tid))
@@ -241,7 +250,8 @@ class SkillUI:
                 task["id"],
                 task["title"],
                 task["description"],
-                task["status"]
+                task["status"],
+                task["streak"]
         )
             
     def get_required_oxp(self, level):
