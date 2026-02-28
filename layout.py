@@ -75,6 +75,15 @@ class SkillUI:
                                           command=self.open_add_task_popup)
         self.add_task_button.grid(row=2, column=0, pady=(0, 15))
         
+        self.stats_btn = tk.Button(info_frame,
+                                   text="Stats",
+                                   bg="#003366",
+                                   fg="white",
+                                   font=("Arial", 11, "bold"),
+                                   command=self.show_stats)
+        self.stats_btn.grid(row=4, column=0, pady=15)
+        
+       
 
         # --- 3. Bottom Frame (Whole Bottom) ---
         tasks_frame = tk.Frame(self.root, bg="#001833", bd=2, relief="ridge")
@@ -89,7 +98,7 @@ class SkillUI:
 
 
         
-       
+        
         
       
         
@@ -148,6 +157,9 @@ class SkillUI:
         self.refresh_skill_ui()
         
     # skill layout
+    def clear_content(self):
+        for widget in self.task_container.winfo_children():
+            widget.destroy()
     
     def refresh_skill_ui(self):
         
@@ -231,6 +243,69 @@ class SkillUI:
 
 # Bind click event
         status_label.bind("<Button-1>", lambda e, tid=task_id: self.complete_task(tid))
+        
+    def show_stats(self):
+        self.clear_content()
+        
+        back_btn =tk.Button(
+            self.task_container,
+            text="<-Back",
+            bg="#003366",
+            fg="white",
+            command=lambda: self.switch_menu(self.current_period)
+        )
+        back_btn.grid(row=0, column=0, sticky="w", pady=5)
+            
+            
+        player = self.db.get_player()
+        required_oxp = 100 + (player["level"] - 1) * 50
+        
+        
+        
+        tk.Label(self.task_container,
+                 text="Character Stats",
+                 bg="#001833",
+                 fg="white",
+                 font=("Arial",16,"bold")
+                 ).grid(row=0,column=0,columnspan=2,pady=10)
+        
+        tk.Label(self.task_container,
+                 text=f"Level: {player['level']}",
+                 bg="#001833",
+                 fg="white",).grid(row=1,column=0,sticky="w", padx=20)
+        
+        tk.Label(self.task_container,
+                 text=f"OXP: {player['oxp']}",
+                 bg="#001833",
+                 fg="white",).grid(row=2,column=0,sticky="w", padx=20)
+        tk.Label(self.task_container,
+                 text=f"Gold: {player['gold']}",
+                 bg="#001833",
+                 fg="white",).grid(row=3,column=0,sticky="w", padx=20)
+        self.show_skill_stats()
+        
+        
+    def show_skill_stats(self):
+        skills = self.db.get_all_skills()
+        
+        start_row = 5
+        
+        for index, skill in enumerate(skills):
+            required = 50 + (skill["level"] - 1) * 25
+            
+            tk.Label(self.task_container,
+                     text=f"{skill['name']} - Lv {skill['level']}",
+                     bg="#001833",
+                     fg="white",
+                     font=("Arial", 11,"bold")).grid(row=start_row+index*2, column=0, sticky="w", padx=20)
+            
+            progress = ttk.Progressbar(self.task_container,
+                                       length=250,
+                                       maximum=required,
+                                       value=skill["xp"],
+                                       style="TProgressbar")
+            progress.grid(row=start_row+index*2+1, column=0, sticky="w", padx=20, pady=5)
+        
 
     def show_tasks(self, period):
 
@@ -259,6 +334,8 @@ class SkillUI:
     
     def get_required_sxp(self, level):
         return 50 + (level - 1) * 25
+    
+    
     
     
     def switch_menu(self, period):
