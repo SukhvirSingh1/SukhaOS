@@ -40,6 +40,26 @@ class GameEngine:
             if new_streak % 7 ==0:
                 player["oxp"] += 50
                 print(f"Streak bonus! Player earned 50 OXP for a {new_streak}-day streak.")
+                
+    def buy_skill_boost(self, skill_name):
+        player = self.db.get_player()
+        skill = self.db.get_skill(skill_name)
+        
+        COST = 100
+        BOOST_AMOUNT = 20
+        
+        if player["gold"] < COST:
+            return False # not enough gold
+        
+        player["gold"] -= COST
+        skill["xp"] += BOOST_AMOUNT
+        
+        self.check_skill_level_up(skill)
+        
+        self.db.update_skill(skill)
+        self.db.update_player(player)
+        self.db.commit()
+        return True
             
             
         self.check_player_level_up(player)

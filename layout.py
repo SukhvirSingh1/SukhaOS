@@ -83,6 +83,7 @@ class SkillUI:
                                    command=self.show_stats)
         self.stats_btn.grid(row=4, column=0, pady=15)
         
+        
        
 
         # --- 3. Bottom Frame (Whole Bottom) ---
@@ -95,6 +96,13 @@ class SkillUI:
         side_bar = tk.Frame(tasks_frame, bg="#003366")
         side_bar.grid(row=0, column=0, sticky="ns",padx=15)
         
+        shop_btn = tk.Button(side_bar,
+                             text="shop",
+                             bg="#003366",
+                             fg="white",
+                             command=self.show_shop
+        )
+        shop_btn.grid(row=5, column=0, pady=15)
 
 
         
@@ -247,6 +255,15 @@ class SkillUI:
     def show_stats(self):
         self.clear_content()
         
+        for i in range(10):
+            self.task_container.grid_rowconfigure(i, weight=0)
+            self.task_container.grid_columnconfigure(i , weight=0)
+            
+        self.task_container.grid_rowconfigure(0, weight=1)
+        self.task_container.grid_rowconfigure(1, weight=1)
+        self.task_container.grid_columnconfigure(0, weight=1)
+        self.task_container.grid_columnconfigure(1, weight=1)
+        
         back_btn =tk.Button(
             self.task_container,
             text="<-Back",
@@ -312,6 +329,15 @@ class SkillUI:
         # Clear old cards
         for widget in self.task_container.winfo_children():
             widget.destroy()
+            
+        for i in range(10):
+            self.task_container.grid_rowconfigure(i, weight=0)
+            self.task_container.grid_columnconfigure(i , weight=0)
+            
+        self.task_container.grid_rowconfigure(0, weight=1)
+        self.task_container.grid_rowconfigure(1, weight=1)
+        self.task_container.grid_columnconfigure(0, weight=1)
+        self.task_container.grid_columnconfigure(1, weight=1)
 
         # Get tasks from database
         tasks = self.db.get_tasks_by_period(period)
@@ -334,6 +360,47 @@ class SkillUI:
     
     def get_required_sxp(self, level):
         return 50 + (level - 1) * 25
+    
+    def show_shop(self):
+        self.clear_content()
+        
+        tk.Label(self.task_container,
+                 text="Skill boost shop",
+                 bg="#001833",
+                 fg="white",
+                 font=("Arial",16,"bold")
+                 ).grid(row=0, column=0, pady=10)
+        
+        skills = self.db.get_all_skills()
+        
+        row = 1
+        for skill in skills:
+            skill_text = f"{skill['name']} (Lvl {skill['level']})"
+            
+            tk.Label(self.task_container,
+                     text=skill_text,
+                     bg="#001833",
+                     ).grid(row=row, column=0, sticky="w")
+            
+            buy_btn = tk.Button(self.task_container,
+                                text="Buy +20 XP (100 GOLD)",
+                                command=lambda  s=skill["name"]: self.buy_skill(s))
+            buy_btn.grid(row=row, column=1, padx=10)
+            row += 1
+            
+        tk.Button(self.task_container,
+                    text="<-Back",
+                  command=lambda: self.switch_menu(self.current_period)
+                  ).grid(row=row+1, column=0, pady=20)
+            
+    def buy_skill(self, skill_name):
+        success = self.engine.buy_skill_boost(skill_name)
+        if success:
+            self.refresh_player_ui()
+            self.show_shop()
+            
+        else:
+            print("Not enough Gold")
     
     
     
