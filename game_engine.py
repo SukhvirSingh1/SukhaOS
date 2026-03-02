@@ -8,7 +8,7 @@ class GameEngine:
         player = self.db.get_player()
         
         if task["status"] == "Completed":
-            return  # Task already completed
+            return False # Task already completed
     
         
         player["gold"] += task["gold"]
@@ -18,8 +18,14 @@ class GameEngine:
         for reward in rewards:
             skill = self.db.get_skill(reward["skill_name"])
             skill["xp"] += reward["sxp"]
+            
             self.check_skill_level_up(skill)
             self.db.update_skill(skill)
+        self.check_player_level_up(player)
+        
+        self.db.mark_task_completed(task_id)
+        self.db.update_player(player)
+        self.db.commit()
             
         from datetime import date,datetime
         today = date.today()
@@ -30,14 +36,33 @@ class GameEngine:
             last_date = datetime.strptime(last_completed, "%Y-%m-%d").date()
             
             if task["period"] == "daily":
-                if (today - last_date).days == 1:
-                    new_streak = task["streak"] + 1
+                if last_completed:
+                    last_date = datetime.strptime(last_completed, "%Y-%m-%d").date()
+                    if (today - last_date).days == 1:
+                        new_streak = task["streak"] + 1
+                    else :
+                        new_streak = 1
+                else:
+                    new_streak = 1
+            else :  
+                new_streak = task["streak"]
+            multiplayer = 1 + (new_streak // 3) * 0.1
+            
+            player["gold"] += task["gold"]
+            player["oxp"] += task["oxp"]
+            
+            rewards = self.db.task_rewards(task_id)
+            for reward in rewards:
+                skill = self.db.get.skill(reward["skill_name"])
+                skill["xp"] += reward["sxp"]
+                self.check_skill_level_up(skill)
+                self.db.update_skill(skill)
                     
-            elif task["period"] == "weekly":
+        elif task["period"] == "weekly":
                 if today.isocalendar()[1] - last_date.isocalendar()[1] == 1:
                     new_streak = task["streak"] + 1
                     
-            if new_streak % 7 ==0:
+        if new_streak % 7 ==0:
                 player["oxp"] += 50
                 print(f"Streak bonus! Player earned 50 OXP for a {new_streak}-day streak.")
                 
