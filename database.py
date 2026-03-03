@@ -43,6 +43,14 @@ class Database:
                     sxp INTEGER DEFAULT 0
             )
         ''')
+        cursor.execute('''
+                CREATE TABLE IF NOT EXISTS achievement(
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT,
+                    description TEXT,
+                    unlocked INTEGER DEFAULT 0
+            )        
+        ''')
         
         cursor.execute("SELECT COUNT(*) FROM player")
         count = cursor.fetchone()[0]
@@ -53,6 +61,23 @@ class Database:
                           "Editing"]
         for skill in default_skills:
             cursor.execute("INSERT OR IGNORE INTO skill (name, xp, level) VALUES (?, 0, 1)", (skill,))
+        self.conn.commit()
+        
+        cursor.execute("SELECT COUNT(*) FROM achievement")
+        count = cursor.fetchone()[0]
+        
+        if count == 0:
+            achievements =  [
+                ("First Task","Complete your first task"),
+                ("7 Day Discipline","Reach 7 streak on a daily task"),
+                ("Gold Collector","Earn 500 total gold"),
+                ("Mind Level 5","reach Mind level 5")
+            ]
+            for title,desc in achievements:
+                cursor.execute(
+                    "INSERT INTO achievement(title,description) VALUES (?, ?)"
+                    ,(title,desc)
+                )
         self.conn.commit()
         
     def get_player(self):
@@ -186,6 +211,22 @@ class Database:
         cursor = self.conn.cursor()
         cursor.execute("UPDATE task SET streak=? WHERE id=?", (streak, task_id))
         self.conn.commit()
+    
+    def unlock_achievement(self, title):
+        cursor = self.conn.cursor()
+        cursor.execute("UPDATE achievement SET unlocked=1 WHERE title=?",
+                       (title,)
+        )
+        self.conn.commit()
+        
+    def get_achievement(self):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT title, description, unlocked FROM achievement ")
+        rows = cursor.fetchall()
+        return[
+            {"title":r[0], "description":r[1], "unlocked":r[2]}
+            for r in rows
+        ]
 
 
        

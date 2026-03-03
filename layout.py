@@ -301,6 +301,25 @@ class SkillUI:
                  fg="white",).grid(row=3,column=0,sticky="w", padx=20)
         self.show_skill_stats()
         
+        achievement = self.db.get_achievement()
+        start_row = 15
+        
+        tk.Label(self.task_container,
+                 text="Achievements",
+                 bg="#001833",
+                 fg="white",
+                 font=("Arial",14,"bold")
+                 ).grid(row=start_row, column=1,sticky="w", padx=20)
+        row = start_row + 1
+        for ach in achievement:
+            color = "gold" if ach["unlocked"] else "#555555"
+            tk.Label(self.task_container,
+                     text=f"{ach['title']} - {ach['description']}",
+                     bg ="#001833",
+                     fg=color
+                     ).grid(row=row, column =0,sticky = "w",padx=20)
+            row += 1
+
         
     def show_skill_stats(self):
         skills = self.db.get_all_skills()

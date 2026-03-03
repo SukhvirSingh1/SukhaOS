@@ -9,6 +9,8 @@ class GameEngine:
         
         if task["status"] == "Completed":
             return False # Task already completed
+        
+        
     
         
         player["gold"] += task["gold"]
@@ -21,10 +23,17 @@ class GameEngine:
             
             self.check_skill_level_up(skill)
             self.db.update_skill(skill)
+                
+            if skill["name"] == "Mind" and skill["level"] >= 5:
+                self.db.unlock_achievement("Mind Level 5")
         self.check_player_level_up(player)
+        self.db.unlock_achievement("First Task")
+            
         
         self.db.mark_task_completed(task_id)
         self.db.update_player(player)
+        if player["gold"] >= 500:
+            self.db.unlock_achievement("Gold Collector")
         self.db.commit()
             
         from datetime import date,datetime
@@ -48,15 +57,16 @@ class GameEngine:
                 new_streak = task["streak"]
             multiplayer = 1 + (new_streak // 3) * 0.1
             
-            player["gold"] += task["gold"]
-            player["oxp"] += task["oxp"]
             
-            rewards = self.db.task_rewards(task_id)
+            rewards = self.db.get_task_rewards(task_id)
             for reward in rewards:
-                skill = self.db.get.skill(reward["skill_name"])
+                skill = self.db.get_skill(reward["skill_name"])
                 skill["xp"] += reward["sxp"]
                 self.check_skill_level_up(skill)
                 self.db.update_skill(skill)
+            
+            if new_streak >= 7:
+                self.db.unlock_achievement("7 Day Discipline")
                     
         elif task["period"] == "weekly":
                 if today.isocalendar()[1] - last_date.isocalendar()[1] == 1:
