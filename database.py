@@ -227,6 +227,16 @@ class Database:
             {"title":r[0], "description":r[1], "unlocked":r[2]}
             for r in rows
         ]
+        
+    def update_task(self, task_id, title, description, period):
+        cursor = self.conn.cursor()
+        
+        cursor.execute("""
+                       UPDATE task
+                       SET title=?, description=?, period=?
+                       WHERE id=?
+                       """, (title, description, period, task_id))
+        self.conn.commit()
 
 
        

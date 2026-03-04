@@ -248,7 +248,18 @@ class SkillUI:
                  fg ="orange",
                 font=("Arial", 9, "italic")
                 ).grid(row=0, column=2, padx=10)
-
+        
+        # edit button
+        
+        edit_btn = tk.Button(
+            card,
+            text="Edit",
+            bg="#004080",
+            fg="white",
+            font=("Arial",8),
+            command=lambda tid = task_id: self.open_edit_task_popup(tid)
+        )
+        edit_btn.grid(row=2, column=0, padx=10)
 # Bind click event
         status_label.bind("<Button-1>", lambda e, tid=task_id: self.complete_task(tid))
         
@@ -518,6 +529,51 @@ class SkillUI:
             self.show_tasks(self.current_period)
             
         tk.Button(popup, text="Save Task", command=save_task).grid(row=5, column=0, columnspan=2, pady=20)
+        
+        
+    def open_edit_task_popup(self, task_id):
+        task = self.db.get_task(task_id)
+            
+        popup = tk.Toplevel(self.root)
+        popup.title("Edit Task")
+        popup.geometry("400x300")
+            
+        tk.Label(popup,text="Title").grid(row=0, column=0, pady=10)
+        title_entry = tk.Entry(popup)
+        title_entry.insert(0, task["title"])
+        title_entry.grid(row=0, column=1)
+            
+        tk.Label(popup, text="Description").grid(row=1, column=0, pady=10)
+        desc_entry = tk.Entry(popup)
+        desc_entry.insert(0,task["description"])
+        desc_entry.grid(row=1,column=1)
+            
+        tk.Label(popup, text="Period").grid(row=2, column=0, pady=10)
+        period_var = tk.StringVar(value=task["period"])
+            
+        period_menu = ttk.Combobox(
+            popup,
+            textvariable=period_var,
+            values=["daily","weekly","monthly","yearly"],
+            state="readonly"
+            )
+        period_menu.grid(row=2, column=1)
+            
+        def save_changes():
+            title = title_entry.get()
+            desc = desc_entry.get()
+            period = period_var.get()
+                
+            self.db.update_task(task_id, title, desc, period)
+            popup.destroy()
+                
+            self.show_tasks(self.current_period)
+        tk.Button(
+            popup,
+            text="Save Changes",
+            command=save_changes
+        ).grid(row=3, column=0, columnspan=2,pady=20)            
+        
         
     def animate_bar(self, target):
         current = self.xp_bar["value"]
