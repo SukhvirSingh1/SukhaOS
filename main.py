@@ -6,6 +6,7 @@ from game_engine import GameEngine
 import tkinter as tk
 from tkinter import ttk
 
+
 class SukhaOS:
     def __init__(self, root):
         self.root = root

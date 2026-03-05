@@ -238,5 +238,12 @@ class Database:
                        """, (title, description, period, task_id))
         self.conn.commit()
 
+    def delete_task(self, task_id):
+        cursor = self.conn.cursor()
+        
+        cursor.execute(" DELETE FROM task_reward WHERE task_id=?", (task_id,))
+        cursor.execute("DELETE FROM task WHERE id=?", (task_id,))
+        
+        self.conn.commit()
 
        

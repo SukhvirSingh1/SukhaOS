@@ -1,6 +1,6 @@
 # layout.py - Defines the SkillUI class for SukhaOS application, responsible for building the user interface and handling task display and interactions.
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk,messagebox
 
 PERIOD_REWARDS = {
             "daily": {"gold": 20, "oxp": 20, "sxp": 10},
@@ -260,6 +260,18 @@ class SkillUI:
             command=lambda tid = task_id: self.open_edit_task_popup(tid)
         )
         edit_btn.grid(row=2, column=0, padx=10)
+        
+        #  Delete Button
+        
+        delete_btn = tk.Button(
+            card,
+            text="Delete",
+            bg="#800000",
+            fg="white",
+            font=("Arial",8),
+            command=lambda tid=task_id : self.delete_task(tid)
+        )
+        delete_btn.grid(row=2, column=2, padx=10, pady=5)
 # Bind click event
         status_label.bind("<Button-1>", lambda e, tid=task_id: self.complete_task(tid))
         
@@ -572,8 +584,16 @@ class SkillUI:
             popup,
             text="Save Changes",
             command=save_changes
-        ).grid(row=3, column=0, columnspan=2,pady=20)            
-        
+        ).grid(row=3, column=0, columnspan=2,pady=20)    
+    
+    def delete_task(self, task_id):
+        confirm = messagebox.askyesno(
+            "Confirm Deletion",
+            "This task will be permanently deleted.\n\nContinue?"
+        )        
+        if confirm:
+            self.db.delete_task(task_id)
+            self.show_tasks(self.current_period)
         
     def animate_bar(self, target):
         current = self.xp_bar["value"]
