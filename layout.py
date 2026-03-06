@@ -208,7 +208,7 @@ class SkillUI:
 
         
         
-    def create_task_card(self, row, col, task_id, title, description, status, streak):
+    def create_task_card(self, row, col, task_id, title, description, status, streak, difficulty):
         
         card = tk.Frame(self.task_container, bg="#003366", bd=0)
         card.grid(row=row, column=col, padx=15, pady=15, sticky="nsew")
@@ -272,6 +272,13 @@ class SkillUI:
             command=lambda tid=task_id : self.delete_task(tid)
         )
         delete_btn.grid(row=2, column=2, padx=10, pady=5)
+        
+        tk.Label(card,
+                 text=f"Difficulty:{difficulty}",
+                 bg="#003366",
+                 fg="#cccccc",
+                 font=("Arial",9)
+                 ).grid(row=1, column=2)
 # Bind click event
         status_label.bind("<Button-1>", lambda e, tid=task_id: self.complete_task(tid))
         
@@ -394,7 +401,8 @@ class SkillUI:
                 task["title"],
                 task["description"],
                 task["status"],
-                task["streak"]
+                task["streak"],
+                task["difficulty"]
         )
             
     def get_required_oxp(self, level):
@@ -510,37 +518,68 @@ class SkillUI:
                                    values=["daily", "weekly", "monthly", "yearly"], state="readonly")
         period_menu.grid(row=2, column=1)
         
-        tk.Label(popup, text="Skill 1",bg = "#00254d", fg="#E0E0E0").grid(row=3, column=0)
+        tk.Label(popup, text="Skill 1",bg = "#00254d", fg="#E0E0E0").grid(row=4, column=0)
         skills = [skill["name"] for skill in self.db.get_all_skills()]
         skill1_var = tk.StringVar()      
         skill1_entry = ttk.Combobox(popup, values=skills, textvariable=skill1_var, state="readonly")
-        skill1_entry.grid(row=3, column=1)
+        skill1_entry.grid(row=4, column=1)
         
         
         
-        tk.Label(popup, text="Skill 2 (OPTIONAL)",bg = "#00254d", fg="#E0E0E0").grid(row=4, column=0)
+        tk.Label(popup, text="Skill 2 (OPTIONAL)",bg = "#00254d", fg="#E0E0E0").grid(row=5, column=0)
         skill2_var = tk.StringVar()
         skill2_entry = ttk.Combobox(popup, values=skills, textvariable=skill2_var, state="readonly")
-        skill2_entry.grid(row=4, column=1)
+        skill2_entry.grid(row=5, column=1)
+        
+        tk.Label(popup,
+                 text="Difficulty:",
+                 bg="#00254d",
+                 fg="#E0E0E0").grid(row=3, column=0)
+        difficulty_var = tk.StringVar(value="Medium")
+        difficulty_menu = ttk.Combobox(
+            popup,
+            textvariable=difficulty_var,
+            values=["Easy","Medium","Hard"],
+            state="readonly"
+        )
+        difficulty_menu.grid(row=3, column=1)
         
         def save_task():
-            title = title_entry.get()
-            description = desc_entry.get()
+            title = title_entry.get().strip()
+            description = desc_entry.get().strip()
             period = period_var.get()
+            skill1 = skill1_entry.get()
+            skill2 = skill2_entry.get()
+            difficulty = difficulty_var.get()
+            if not title:
+                messagebox.showerror("Error","Title is required")
+                return
+            if not description:
+                messagebox.showerror("Error","Description is required")
+                return
+            if not skill1:
+                messagebox.showerror("Error","At least one skill must be selected")
+                return
+                 
+            DIFFICULTY_MULTIPLIER ={
+                "Easy":0.8,
+                "Medium":1,
+                "Hard":1.5
+            }
+            rewards = PERIOD_REWARDS.get(period) 
+            mult = DIFFICULTY_MULTIPLIER[difficulty]   
+            oxp = int(rewards["oxp"] * mult)
+            gold = int(rewards["gold"] * mult)
+            sxp = int(rewards["sxp"] * mult)   
             
-            rewards = PERIOD_REWARDS.get(period)
-    
-           
-               
-            
-            task_id = self.db.add_task(title, description, period, rewards["oxp"], rewards["gold"])
+            task_id = self.db.add_task(title, description, period, difficulty, oxp, gold,)
             self.db.add_task_reward(task_id, skill1_entry.get(), rewards["sxp"])
             if skill2_entry.get():
                 self.db.add_task_reward(task_id, skill2_entry.get(), rewards["sxp"])
             popup.destroy()
             self.show_tasks(self.current_period)
             
-        tk.Button(popup, text="Save Task", command=save_task).grid(row=5, column=0, columnspan=2, pady=20)
+        tk.Button(popup, text="Save Task", command=save_task).grid(row=6, column=0, columnspan=2, pady=20)
         
         
     def open_edit_task_popup(self, task_id):

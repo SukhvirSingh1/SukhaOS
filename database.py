@@ -30,6 +30,7 @@ class Database:
                 title TEXT,
                 description TEXT,
                 period TEXT,
+                difficulty TEXT DEFAULT "medium",
                 oxp INTEGER DEFAULT 0,
                 gold INTEGER DEFAULT 0,
                 status TEXT DEFAULT "Pending",
@@ -131,12 +132,19 @@ class Database:
         
     def get_tasks_by_period(self, period):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, title, description, status, streak FROM task WHERE period=?", (period,))
+        cursor.execute("SELECT id, title, description, status, streak, difficulty FROM task WHERE period=?", (period,))
         
         rows = cursor.fetchall()
         
         
-        return [{"id": row[0], "title": row[1], "description": row[2], "period": period, "status": row[3], "streak": row[4]} for row in rows]
+        return [{"id": row[0],
+                 "title": row[1],
+                 "description": row[2],
+                 "period": period,
+                 "status": row[3],
+                 "streak": row[4],
+                 "difficulty": row[5]
+                 } for row in rows]
     
     def mark_task_completed(self, task_id):
         from datetime import date
@@ -190,12 +198,12 @@ class Database:
             for r in rows
         ]
         
-    def add_task(self, title, description, period, oxp, gold):
+    def add_task(self, title, description, period, difficulty, oxp, gold):
         cursor = self.conn.cursor()
         cursor.execute("""
-                       INSERT INTO task(title, description, period, oxp, gold, status)
-                       VALUES(?, ?, ?, ? ,?, 'Pending')
-        """,(title, description, period, oxp, gold))
+                       INSERT INTO task(title, description, period, difficulty, oxp, gold, status)
+                       VALUES(?, ?, ?, ? ,?, ?, 'Pending')
+        """,(title, description, period, difficulty, oxp, gold))
         self.conn.commit()
         return cursor.lastrowid
     

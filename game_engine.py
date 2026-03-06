@@ -13,8 +13,8 @@ class GameEngine:
         
     
         
-        player["gold"] += task["gold"]
-        player["oxp"] += task["oxp"]
+        player["gold"] += task["gold"] * multiplayer
+        player["oxp"] += task["oxp"] * multiplayer
         
         rewards = self.db.get_task_rewards(task_id) 
         for reward in rewards:
