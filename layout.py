@@ -390,8 +390,26 @@ class SkillUI:
 
         # Get tasks from database
         tasks = self.db.get_tasks_by_period(period)
+        completed = sum(1 for t in tasks if t["status"] == "Completed")
+        total = len(tasks)
 
-        positions = [(0,0), (0,1), (1,0), (1,1)]
+        positions = [(2,0), (2,1), (3,0), (3,1)]
+        
+        tk.Label(
+            self.task_container,
+            text=f"{completed} / {total} tasks completed",
+            bg="#001833",
+            fg="white",
+            font=("Arial",11,"bold")
+        ).grid(row=0, column=0, columnspan=2, pady=5)
+        
+        progress = ttk.Progressbar(
+            self.task_container,
+            length=250,
+            maximum=total if total > 0 else 1,
+            value=completed
+        )
+        progress.grid(row=1, column=0, columnspan=2, pady=5)
 
         for task, pos in zip(tasks, positions):
             self.create_task_card(
@@ -445,12 +463,14 @@ class SkillUI:
             
     def buy_skill(self, skill_name):
         success = self.engine.buy_skill_boost(skill_name)
+        
         if success:
+            self.refresh_player_ui()
             self.refresh_player_ui()
             self.show_shop()
             
         else:
-            print("Not enough Gold")
+            messagebox.showerror("Error","Not enough Gold")
     
     
     

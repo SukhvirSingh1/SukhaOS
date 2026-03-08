@@ -11,10 +11,9 @@ class GameEngine:
             return False # Task already completed
         
         
-    
+        player["gold"] += task["gold"]
+        player["oxp"] += task["oxp"]
         
-        player["gold"] += task["gold"] * multiplayer
-        player["oxp"] += task["oxp"] * multiplayer
         
         rewards = self.db.get_task_rewards(task_id) 
         for reward in rewards:
@@ -55,7 +54,10 @@ class GameEngine:
                     new_streak = 1
             else :  
                 new_streak = task["streak"]
-            multiplayer = 1 + (new_streak // 3) * 0.1
+          
+            
+            
+        
             
             
             rewards = self.db.get_task_rewards(task_id)
