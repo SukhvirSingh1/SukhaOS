@@ -1,6 +1,7 @@
 # layout.py - Defines the SkillUI class for SukhaOS application, responsible for building the user interface and handling task display and interactions.
 import tkinter as tk
 from tkinter import ttk,messagebox
+import matplotlib.pyplot as plt
 
 PERIOD_REWARDS = {
             "daily": {"gold": 20, "oxp": 20, "sxp": 10},
@@ -423,6 +424,15 @@ class SkillUI:
                 task["difficulty"]
         )
             
+            
+        tk.Button(
+            self.task_container,
+            text="Show Graph",
+            bg="#001833",
+            fg="white",
+            command=self.show_task_graph
+        ).grid(row=4,column=1,pady=10)
+            
     def get_required_oxp(self, level):
         return 100 + (level - 1) * 50
     
@@ -662,11 +672,47 @@ class SkillUI:
         
         
     def complete_task(self, task_id):
+        old_player = self.db.get_player()
+        old_level = old_player["level"]
+        
         player = self.engine.complete_task(task_id)
+        
+        new_player = self.db.get_player()
+        new_level = new_player["level"]
+        if new_level > old_level:
+            messagebox.showinfo(
+                "Level Up!",
+                f"You reached level {new_level}!"
+            )
         self.refresh_player_ui()
         self.refresh_skill_ui()
         self.show_tasks(self.current_period)
+    
+    def show_task_graph(self):
+        tasks = self.db.get_tasks_by_period(self.current_period)
         
+        difficulty_count = {
+            "Easy":0,
+            "Medium":0,
+            "Hard":0
+        }
+        
+        for task in tasks:
+            diff = task["difficulty"].capitalize()
+            if diff in difficulty_count:
+                difficulty_count[diff] += 1
+        
+        labels = list(difficulty_count.keys())
+        values = list(difficulty_count.values())
+        
+        plt.figure()
+        plt.bar(labels,values)
+        
+        plt.title("Task by Difficulty")
+        plt.xlabel("Difficulty")
+        plt.ylabel("Number of tasks")
+        
+        plt.show()
         
                 
  
