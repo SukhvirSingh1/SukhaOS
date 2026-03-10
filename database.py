@@ -52,6 +52,15 @@ class Database:
                     unlocked INTEGER DEFAULT 0
             )        
         ''')
+        cursor.execute(''' 
+                CREATE TABLE IF NOT EXISTS task_history(
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    task_id INTEGER,
+                    title_text,
+                    difficulty TEXT,
+                    date_completed TEXT
+            )
+        ''')
         
         cursor.execute("SELECT COUNT(*) FROM player")
         count = cursor.fetchone()[0]
@@ -253,5 +262,16 @@ class Database:
         cursor.execute("DELETE FROM task WHERE id=?", (task_id,))
         
         self.conn.commit()
+        
+    def get_task_history(self):
+        cursor = self.conn.cursor()
+        
+        cursor.execute("""
+                SELECT title, difficulty, date_completed
+                FROM task_history
+                ORDER BY date_completed DESC
+                """)
+        rows = cursor.fetchall()
+        return rows
 
        

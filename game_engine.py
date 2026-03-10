@@ -77,6 +77,20 @@ class GameEngine:
         if new_streak % 7 ==0:
                 player["oxp"] += 50
                 print(f"Streak bonus! Player earned 50 OXP for a {new_streak}-day streak.")
+        from datetime import date
+        today = date.today().isoformat()
+        
+        cursor = self.db.conn.cursor()
+        cursor.execute("""
+                    INSERT INTO task_task(task_id, title, difficulty, date_completed)
+                    VALUES (?, ?, ?, ?)
+                    """,(
+                        task["id"],
+                        task["title"],
+                        task.get["difficulty", "Medium"],
+                        today
+                    ))
+        self.db.conn.commit()
                 
     def buy_skill_boost(self, skill_name):
         player = self.db.get_player()
