@@ -56,7 +56,7 @@ class Database:
                 CREATE TABLE IF NOT EXISTS task_history(
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     task_id INTEGER,
-                    title_text,
+                    title TEXT,
                     difficulty TEXT,
                     date_completed TEXT
             )

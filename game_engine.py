@@ -1,3 +1,4 @@
+# game_engine.py
 # xp, levels, rewards logic for SukhaOS application
 
 class GameEngine:
@@ -82,15 +83,16 @@ class GameEngine:
         
         cursor = self.db.conn.cursor()
         cursor.execute("""
-                    INSERT INTO task_task(task_id, title, difficulty, date_completed)
+                    INSERT INTO task_history(task_id, title, difficulty, date_completed)
                     VALUES (?, ?, ?, ?)
                     """,(
                         task["id"],
                         task["title"],
-                        task.get["difficulty", "Medium"],
+                        task.get("difficulty", "Medium"),
                         today
                     ))
         self.db.conn.commit()
+        return True
                 
     def buy_skill_boost(self, skill_name):
         player = self.db.get_player()

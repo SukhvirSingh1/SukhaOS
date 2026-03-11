@@ -1,4 +1,6 @@
+# main.py
 # Entry point for SukhaOS application
+
 
 from database import Database
 from layout import SkillUI

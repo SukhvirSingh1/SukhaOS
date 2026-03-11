@@ -674,8 +674,13 @@ class SkillUI:
     def complete_task(self, task_id):
         old_player = self.db.get_player()
         old_level = old_player["level"]
-        
-        player = self.engine.complete_task(task_id)
+        result = self.engine.complete_task(task_id)
+        if result is False:
+            messagebox.showinfo(
+                "Task",
+                "Task already completed"
+            )
+            return
         
         new_player = self.db.get_player()
         new_level = new_player["level"]
@@ -687,6 +692,10 @@ class SkillUI:
         self.refresh_player_ui()
         self.refresh_skill_ui()
         self.show_tasks(self.current_period)
+        self.show_notification(
+            "Task Completed",
+            "Great work! Rewards added."
+        )
     
     def show_task_graph(self):
         tasks = self.db.get_tasks_by_period(self.current_period)
@@ -713,6 +722,19 @@ class SkillUI:
         plt.ylabel("Number of tasks")
         
         plt.show()
+        
+    def show_notification(self, title, message):
+        popup = tk.Toplevel(self.root)
+        popup.title(title)
+        popup.geometry("250x120")
+        
+        tk.Label(
+            popup,
+            text=title,
+            font=("Arial",12,"bold")
+        ).pack(pady=5)
+        
+        popup.after(2000, popup.destroy)
         
                 
  
