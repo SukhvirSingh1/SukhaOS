@@ -34,7 +34,7 @@ class Database:
                 oxp INTEGER DEFAULT 0,
                 gold INTEGER DEFAULT 0,
                 status TEXT DEFAULT "Pending",
-                last_completed TEXT ,
+                last_completed TEXT,
                 Streak INTEGER DEFAULT 0)
         ''')
         cursor.execute('''
@@ -67,8 +67,7 @@ class Database:
         if count == 0:
             cursor.execute("INSERT INTO player (id, oxp, level, gold) VALUES (1, 0, 1, 0)")
         
-        default_skills = ["Mind","Health","Strength","IQ","Programming",
-                          "Editing"]
+        default_skills = ["Mind", "Health", "Strength", "IQ", "Programming", "Editing"]
         for skill in default_skills:
             cursor.execute("INSERT OR IGNORE INTO skill (name, xp, level) VALUES (?, 0, 1)", (skill,))
         self.conn.commit()
@@ -77,16 +76,16 @@ class Database:
         count = cursor.fetchone()[0]
         
         if count == 0:
-            achievements =  [
-                ("First Task","Complete your first task"),
-                ("7 Day Discipline","Reach 7 streak on a daily task"),
-                ("Gold Collector","Earn 500 total gold"),
-                ("Mind Level 5","reach Mind level 5")
+            achievements = [
+                ("First Task", "Complete your first task"),
+                ("7 Day Discipline", "Reach 7 streak on a daily task"),
+                ("Gold Collector", "Earn 500 total gold"),
+                ("Mind Level 5", "Reach Mind level 5")
             ]
-            for title,desc in achievements:
+            for title, desc in achievements:
                 cursor.execute(
-                    "INSERT INTO achievement(title,description) VALUES (?, ?)"
-                    ,(title,desc)
+                    "INSERT INTO achievement(title, description) VALUES (?, ?)",
+                    (title, desc)
                 )
         self.conn.commit()
         
@@ -103,11 +102,21 @@ class Database:
     
     def get_task(self, task_id):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, title, description, period, oxp, gold, status,last_completed,streak FROM task WHERE id=?", (task_id,))
+        cursor.execute("SELECT id, title, description, period, oxp, gold, status, last_completed, streak FROM task WHERE id=?", (task_id,))
         row = cursor.fetchone()
         if row is None:
-            raise None
-        return {"id": row[0], "title": row[1], "description": row[2], "period": row[3], "oxp": row[4], "gold": row[5], "status": row[6], "last_completed": row[7], "streak": row[8]}
+            return None 
+        return {
+            "id": row[0],
+            "title": row[1],
+            "description": row[2],
+            "period": row[3],
+            "oxp": row[4],
+            "gold": row[5],
+            "status": row[6],
+            "last_completed": row[7],
+            "streak": row[8]
+        }
     
     def get_task_rewards(self, task_id):
         cursor = self.conn.cursor()
@@ -121,7 +130,7 @@ class Database:
         if row is None:
             cursor.execute("INSERT INTO skill (name, xp, level) VALUES (?, 0, 1)", (skill_name,))
             self.conn.commit()
-            return { "name": skill_name, "xp": 0, "level": 1}
+            return {"name": skill_name, "xp": 0, "level": 1}
         return {"id": row[0], "name": row[1], "xp": row[2], "level": row[3]}
     
     def update_skill(self, skill):
@@ -142,29 +151,26 @@ class Database:
     def get_tasks_by_period(self, period):
         cursor = self.conn.cursor()
         cursor.execute("SELECT id, title, description, status, streak, difficulty FROM task WHERE period=?", (period,))
-        
         rows = cursor.fetchall()
-        
-        
-        return [{"id": row[0],
-                 "title": row[1],
-                 "description": row[2],
-                 "period": period,
-                 "status": row[3],
-                 "streak": row[4],
-                 "difficulty": row[5]
-                 } for row in rows]
+        return [{
+            "id": row[0],
+            "title": row[1],
+            "description": row[2],
+            "period": period,
+            "status": row[3],
+            "streak": row[4],
+            "difficulty": row[5]
+        } for row in rows]
     
     def mark_task_completed(self, task_id):
         from datetime import date
         today = date.today().isoformat()
-        
         cursor = self.conn.cursor()
         cursor.execute("UPDATE task SET status='Completed', last_completed=? WHERE id=?", (today, task_id))
         self.conn.commit()
         
     def reset_tasks(self):
-        from datetime import date,datetime
+        from datetime import date, datetime
         today = date.today()
         cursor = self.conn.cursor()
         
@@ -172,7 +178,6 @@ class Database:
         tasks = cursor.fetchall()
         
         for task_id, period, last_completed in tasks:
-            
             if last_completed is None:
                 continue
             
@@ -180,16 +185,13 @@ class Database:
             
             reset = False
             if period == "daily":
-               reset = last_date != today
-               
+                reset = last_date != today
             elif period == "weekly":
-                reset = last_date.isocalendar()[1] != today.isocalendar()[1]\
+                reset = last_date.isocalendar()[1] != today.isocalendar()[1] \
                     or last_date.year != today.year
-                    
             elif period == "monthly":
                 reset = last_date.month != today.month \
                     or last_date.year != today.year
-            
             elif period == "yearly":
                 reset = last_date.year != today.year
                 
@@ -200,28 +202,24 @@ class Database:
     def get_all_skills(self):
         cursor = self.conn.cursor()
         cursor.execute("SELECT name, xp, level FROM skill")
-        rows = cursor.fetchall()     
-        
-        return[
-            {"name":r[0],"xp":r[1],"level":r[2]}
-            for r in rows
-        ]
+        rows = cursor.fetchall()
+        return [{"name": r[0], "xp": r[1], "level": r[2]} for r in rows]
         
     def add_task(self, title, description, period, difficulty, oxp, gold):
         cursor = self.conn.cursor()
         cursor.execute("""
-                       INSERT INTO task(title, description, period, difficulty, oxp, gold, status)
-                       VALUES(?, ?, ?, ? ,?, ?, 'Pending')
-        """,(title, description, period, difficulty, oxp, gold))
+            INSERT INTO task(title, description, period, difficulty, oxp, gold, status)
+            VALUES(?, ?, ?, ?, ?, ?, 'Pending')
+        """, (title, description, period, difficulty, oxp, gold))
         self.conn.commit()
         return cursor.lastrowid
     
     def add_task_reward(self, task_id, skill_name, sxp):
         cursor = self.conn.cursor()
         cursor.execute("""
-                    INSERT INTO task_reward(task_id, skill_name, sxp)
-                    VALUES(?, ?, ?)
-                    """,(task_id, skill_name, sxp))
+            INSERT INTO task_reward(task_id, skill_name, sxp)
+            VALUES(?, ?, ?)
+        """, (task_id, skill_name, sxp))
         self.conn.commit()
         
     def update_task_streak(self, task_id, streak):
@@ -231,47 +229,36 @@ class Database:
     
     def unlock_achievement(self, title):
         cursor = self.conn.cursor()
-        cursor.execute("UPDATE achievement SET unlocked=1 WHERE title=?",
-                       (title,)
-        )
+        cursor.execute("UPDATE achievement SET unlocked=1 WHERE title=?", (title,))
         self.conn.commit()
         
     def get_achievement(self):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT title, description, unlocked FROM achievement ")
+        cursor.execute("SELECT title, description, unlocked FROM achievement")
         rows = cursor.fetchall()
-        return[
-            {"title":r[0], "description":r[1], "unlocked":r[2]}
-            for r in rows
-        ]
+        return [{"title": r[0], "description": r[1], "unlocked": r[2]} for r in rows]
         
     def update_task(self, task_id, title, description, period):
         cursor = self.conn.cursor()
-        
         cursor.execute("""
-                       UPDATE task
-                       SET title=?, description=?, period=?
-                       WHERE id=?
-                       """, (title, description, period, task_id))
+            UPDATE task
+            SET title=?, description=?, period=?
+            WHERE id=?
+        """, (title, description, period, task_id))
         self.conn.commit()
 
     def delete_task(self, task_id):
         cursor = self.conn.cursor()
-        
-        cursor.execute(" DELETE FROM task_reward WHERE task_id=?", (task_id,))
+        cursor.execute("DELETE FROM task_reward WHERE task_id=?", (task_id,))
         cursor.execute("DELETE FROM task WHERE id=?", (task_id,))
-        
         self.conn.commit()
         
     def get_task_history(self):
         cursor = self.conn.cursor()
-        
         cursor.execute("""
-                SELECT title, difficulty, date_completed
-                FROM task_history
-                ORDER BY date_completed DESC
-                """)
+            SELECT title, difficulty, date_completed
+            FROM task_history
+            ORDER BY date_completed DESC
+        """)
         rows = cursor.fetchall()
         return rows
-
-       
