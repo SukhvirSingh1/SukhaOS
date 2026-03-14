@@ -262,3 +262,19 @@ class Database:
         """)
         rows = cursor.fetchall()
         return rows
+    
+    def add_skill(self, skill_name):
+        cursor = self.conn.cursor()
+        
+        cursor.execute("SELECT name FROM skill WHERE name=?",(skill_name,))
+        if cursor.fetchone():
+            return False
+        cursor.execute("INSERT INTO skill(name, xp, level) VALUES (?, 0, 1)",(skill_name,))
+        self.conn.commit()
+        return True
+    
+    def delete_skill(self, skill_name):
+        cursor = self.conn.cursor()
+        cursor.execute("DELETE FROM skill WHERE name=?",(skill_name,))
+        self.conn.commit()
+            

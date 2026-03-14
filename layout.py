@@ -39,11 +39,52 @@ class SkillUI:
         )
         self.skill_title.grid(row=0, column=0, pady=(20, 10))
 
-        self.skills_container = tk.Frame(chrctr_frame, bg="#00254d")
-        self.skills_container.grid(row=1, column=0, sticky="nsew", padx=10)
+        # --- Scrollable skills area ---
+        # Canvas is the viewport — it's what you see
+        # skills_container is the real frame inside that holds all the labels
+        # When skills overflow, the canvas scrolls to show them
+        self.skills_canvas = tk.Canvas(chrctr_frame, bg="#00254d", highlightthickness=0)
+        self.skills_canvas.grid(row=1, column=0, sticky="nsew", padx=(10, 0))
+
+        skills_scrollbar = ttk.Scrollbar(chrctr_frame, orient="vertical", command=self.skills_canvas.yview)
+        skills_scrollbar.grid(row=1, column=1, sticky="ns")
+
+        self.skills_canvas.configure(yscrollcommand=skills_scrollbar.set)
+
+        self.skills_container = tk.Frame(self.skills_canvas, bg="#00254d")
+        self.skills_canvas_window = self.skills_canvas.create_window(
+            (0, 0), window=self.skills_container, anchor="nw"
+        )
+
+        # Whenever skills_container resizes, update the canvas scroll region
+        self.skills_container.bind("<Configure>", lambda e: self.skills_canvas.configure(
+            scrollregion=self.skills_canvas.bbox("all")
+        ))
+
+        # Keep skills_container width in sync with canvas width
+        self.skills_canvas.bind("<Configure>", lambda e: self.skills_canvas.itemconfig(
+            self.skills_canvas_window, width=e.width
+        ))
+
+        # Mouse wheel scrolling support
+        self.skills_canvas.bind("<MouseWheel>", lambda e: self.skills_canvas.yview_scroll(
+            int(-1 * (e.delta / 120)), "units"
+        ))
+
+        self.add_skill_btn = tk.Button(
+            chrctr_frame,
+            text="+ Add Skill",
+            bg="#003366",
+            fg="#E0E0E0",
+            font=("Arial", 9, "bold"),
+            command=self.open_add_skill_popup
+        )
+        self.add_skill_btn.grid(row=2, column=0, columnspan=2, pady=(0, 10))
 
         chrctr_frame.rowconfigure(1, weight=1)
+        chrctr_frame.rowconfigure(2, weight=0)
         chrctr_frame.columnconfigure(0, weight=1)
+        chrctr_frame.columnconfigure(1, weight=0)
 
         # --- 2. Top Right Frame (70%) ---
         info_frame = tk.Frame(self.root, bg="#00254d", bd=2, relief="ridge")
@@ -60,10 +101,10 @@ class SkillUI:
         info_frame.rowconfigure(1, weight=0)
         info_frame.rowconfigure(2, weight=0)
         info_frame.rowconfigure(3, weight=0)
+        info_frame.rowconfigure(4, weight=0)
         info_frame.rowconfigure(5, weight=1)
         info_frame.rowconfigure(6, weight=0)
         info_frame.columnconfigure(0, weight=1)
-        
 
         self.gold_label = tk.Label(info_frame,
                                    text="Gold: 0",
@@ -87,12 +128,12 @@ class SkillUI:
                                    font=("Arial", 11, "bold"),
                                    command=self.show_stats)
         self.stats_btn.grid(row=4, column=0, pady=15)
-        
+
         self.heatmap_btn = tk.Button(info_frame,
-                                     text ="Habit Map",
+                                     text="Habit Map",
                                      bg="#003366",
                                      fg="white",
-                                     font=("Arial",11,"bold"),
+                                     font=("Arial", 11, "bold"),
                                      command=self.show_heatmap)
         self.heatmap_btn.grid(row=5, column=0)
 
@@ -187,6 +228,7 @@ class SkillUI:
                 f"{skill['name']} | Lv {skill['level']} "
                 f"{skill['xp']} / {required}"
             )
+
             tk.Label(
                 self.skills_container,
                 text=skill_text,
@@ -195,6 +237,30 @@ class SkillUI:
                 anchor="w",
                 font=("Arial", 10)
             ).grid(row=index, column=0, sticky="ew", pady=3)
+
+            # Small red x button to delete skill
+            tk.Button(
+                self.skills_container,
+                text="x",
+                bg="#00254d",
+                fg="#ff4444",
+                font=("Arial", 8, "bold"),
+                bd=0,
+                cursor="hand2",
+                command=lambda n=skill["name"]: self.delete_skill(n)
+            ).grid(row=index, column=1, padx=(5, 0), pady=3)
+
+        self.skills_container.columnconfigure(0, weight=1)
+        self.skills_container.columnconfigure(1, weight=0)
+
+    def delete_skill(self, skill_name):
+        confirm = messagebox.askyesno(
+            "Delete Skill",
+            f"Delete '{skill_name}'? This won't affect existing tasks."
+        )
+        if confirm:
+            self.db.delete_skill(skill_name)
+            self.refresh_skill_ui()
 
     def create_task_card(self, row, col, task_id, title, description, status, streak, difficulty):
         card = tk.Frame(self.task_container, bg="#003366", bd=0)
@@ -620,7 +686,7 @@ class SkillUI:
         old_player = self.db.get_player()
         old_level = old_player["level"]
 
-        result = self.engine.complete_task(task_id)  # FIXED: single call only
+        result = self.engine.complete_task(task_id)
 
         if result is False:
             messagebox.showinfo("Task", "Task already completed")
@@ -675,6 +741,52 @@ class SkillUI:
         ).pack(pady=5)
 
         popup.after(2000, popup.destroy)
-        
+
     def show_heatmap(self):
         show_heatmap(self.db)
+
+    def open_add_skill_popup(self):
+        popup = tk.Toplevel(self.root)
+        popup.title("Add New Skill")
+        popup.geometry("300x150")
+        popup.config(bg="#00254d")
+
+        tk.Label(popup,
+                 text="Skill Name:",
+                 bg="#00254d",
+                 fg="#E0E0E0",
+                 font=("Arial", 11)
+                 ).grid(row=0, column=0, padx=20, pady=20)
+
+        name_entry = tk.Entry(popup, font=("Arial", 11))
+        name_entry.grid(row=0, column=1, padx=10, pady=20)
+        name_entry.focus()
+
+        def save_skill():
+            name = name_entry.get().strip()
+
+            if not name:
+                messagebox.showerror("Error", "Skill name cannot be empty")
+                return
+            if len(name) > 20:
+                messagebox.showerror("Error", "Skill name too long (max 20 chars)")
+                return
+
+            success = self.db.add_skill(name)
+            if not success:
+                messagebox.showerror("Error", f"'{name}' already exists")
+                return
+
+            popup.destroy()
+            self.refresh_skill_ui()
+            self.show_notification("Skill Added", f"{name} is now tracking!")
+
+        name_entry.bind("<Return>", lambda e: save_skill())
+
+        tk.Button(popup,
+                  text="Add Skill",
+                  bg="#003366",
+                  fg="#E0E0E0",
+                  font=("Arial", 11, "bold"),
+                  command=save_skill
+                  ).grid(row=1, column=0, columnspan=2, pady=10)
