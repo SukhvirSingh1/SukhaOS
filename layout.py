@@ -39,10 +39,7 @@ class SkillUI:
         )
         self.skill_title.grid(row=0, column=0, pady=(20, 10))
 
-        # --- Scrollable skills area ---
-        # Canvas is the viewport — it's what you see
-        # skills_container is the real frame inside that holds all the labels
-        # When skills overflow, the canvas scrolls to show them
+        # Scrollable skills area
         self.skills_canvas = tk.Canvas(chrctr_frame, bg="#00254d", highlightthickness=0)
         self.skills_canvas.grid(row=1, column=0, sticky="nsew", padx=(10, 0))
 
@@ -56,17 +53,12 @@ class SkillUI:
             (0, 0), window=self.skills_container, anchor="nw"
         )
 
-        # Whenever skills_container resizes, update the canvas scroll region
         self.skills_container.bind("<Configure>", lambda e: self.skills_canvas.configure(
             scrollregion=self.skills_canvas.bbox("all")
         ))
-
-        # Keep skills_container width in sync with canvas width
         self.skills_canvas.bind("<Configure>", lambda e: self.skills_canvas.itemconfig(
             self.skills_canvas_window, width=e.width
         ))
-
-        # Mouse wheel scrolling support
         self.skills_canvas.bind("<MouseWheel>", lambda e: self.skills_canvas.yview_scroll(
             int(-1 * (e.delta / 120)), "units"
         ))
@@ -90,21 +82,29 @@ class SkillUI:
         info_frame = tk.Frame(self.root, bg="#00254d", bd=2, relief="ridge")
         info_frame.grid(row=0, column=1, sticky="nsew")
 
+        # Row layout for info_frame:
+        # 0 - level label
+        # 1 - gold label
+        # 2 - add task button
+        # 3 - xp bar
+        # 4 - stats button
+        # 5 - habit map button
+        # 6 - spacer (weight=1 pushes everything up)
+        info_frame.rowconfigure(0, weight=0)
+        info_frame.rowconfigure(1, weight=0)
+        info_frame.rowconfigure(2, weight=0)
+        info_frame.rowconfigure(3, weight=0)
+        info_frame.rowconfigure(4, weight=0)
+        info_frame.rowconfigure(5, weight=0)
+        info_frame.rowconfigure(6, weight=1)  # spacer row — empty, just pushes buttons up
+        info_frame.columnconfigure(0, weight=1)
+
         self.level_label = tk.Label(info_frame,
                                     text="Character lvl 1",
                                     bg="#00254d",
                                     fg="#E0E0E0",
                                     font=("Arial", 16, "bold"))
         self.level_label.grid(row=0, column=0, pady=20)
-
-        info_frame.rowconfigure(0, weight=0)
-        info_frame.rowconfigure(1, weight=0)
-        info_frame.rowconfigure(2, weight=0)
-        info_frame.rowconfigure(3, weight=0)
-        info_frame.rowconfigure(4, weight=0)
-        info_frame.rowconfigure(5, weight=1)
-        info_frame.rowconfigure(6, weight=0)
-        info_frame.columnconfigure(0, weight=1)
 
         self.gold_label = tk.Label(info_frame,
                                    text="Gold: 0",
@@ -121,6 +121,12 @@ class SkillUI:
                                          command=self.open_add_task_popup)
         self.add_task_button.grid(row=2, column=0, pady=(0, 15))
 
+        self.xp_bar = ttk.Progressbar(info_frame,
+                                      orient="horizontal",
+                                      mode="determinate",
+                                      style="XP.Horizontal.TProgressbar")
+        self.xp_bar.grid(row=3, column=0, padx=40, sticky="ew", pady=(10, 2))
+
         self.stats_btn = tk.Button(info_frame,
                                    text="Stats",
                                    bg="#003366",
@@ -135,7 +141,7 @@ class SkillUI:
                                      fg="white",
                                      font=("Arial", 11, "bold"),
                                      command=self.show_heatmap)
-        self.heatmap_btn.grid(row=5, column=0)
+        self.heatmap_btn.grid(row=5, column=0, pady=(0, 15))
 
         # --- 3. Bottom Frame ---
         tasks_frame = tk.Frame(self.root, bg="#001833", bd=2, relief="ridge")
@@ -147,12 +153,14 @@ class SkillUI:
         side_bar = tk.Frame(tasks_frame, bg="#003366")
         side_bar.grid(row=0, column=0, sticky="ns", padx=15)
 
-        shop_btn = tk.Button(side_bar,
-                             text="shop",
-                             bg="#003366",
-                             fg="white",
-                             command=self.show_shop)
-        shop_btn.grid(row=5, column=0, pady=15)
+        # Sidebar row layout:
+        # 0 - D button
+        # 1 - W button
+        # 2 - M button
+        # 3 - Y button
+        # 4 - Log button
+        # 5 - Shop button
+        # No spacer needed — sidebar is sticky="ns" so it fills naturally
 
         self.bottons = {}
         btn_names = ["daily", "weekly", "monthly", "yearly"]
@@ -167,6 +175,22 @@ class SkillUI:
                             command=lambda n=name: self.switch_menu(n))
             btn.grid(row=i, column=0, pady=10)
             self.bottons[name] = btn
+
+        history_btn = tk.Button(side_bar,
+                                text="Log",
+                                bg="#003366",
+                                fg="white",
+                                font=("Arial", 10, "bold"),
+                                command=self.show_history)
+        history_btn.grid(row=4, column=0, pady=10)
+
+        shop_btn = tk.Button(side_bar,
+                             text="Shop",
+                             bg="#003366",
+                             fg="white",
+                             font=("Arial", 10, "bold"),
+                             command=self.show_shop)
+        shop_btn.grid(row=5, column=0, pady=10)
 
         self.task_container = tk.Frame(tasks_frame, bg="#001833")
         self.task_container.grid(row=0, column=1, sticky="nsew", padx=20)
@@ -191,12 +215,6 @@ class SkillUI:
                                  font=("Arial", 9, "bold"),
                                  fg="#aaaaaa")
         self.xp_label.grid(row=3, column=0)
-
-        self.xp_bar = ttk.Progressbar(info_frame,
-                                      orient="horizontal",
-                                      mode="determinate",
-                                      style="XP.Horizontal.TProgressbar")
-        self.xp_bar.grid(row=3, column=0, padx=40, sticky="ew", pady=(10, 2))
 
         self.switch_menu("daily")
         self.refresh_player_ui()
@@ -238,7 +256,6 @@ class SkillUI:
                 font=("Arial", 10)
             ).grid(row=index, column=0, sticky="ew", pady=3)
 
-            # Small red x button to delete skill
             tk.Button(
                 self.skills_container,
                 text="x",
@@ -330,19 +347,18 @@ class SkillUI:
             self.task_container.grid_rowconfigure(i, weight=0)
             self.task_container.grid_columnconfigure(i, weight=0)
 
-        self.task_container.grid_rowconfigure(0, weight=1)
+        self.task_container.grid_rowconfigure(0, weight=0)
         self.task_container.grid_rowconfigure(1, weight=1)
         self.task_container.grid_columnconfigure(0, weight=1)
         self.task_container.grid_columnconfigure(1, weight=1)
 
-        back_btn = tk.Button(
+        tk.Button(
             self.task_container,
-            text="<-Back",
+            text="<- Back",
             bg="#003366",
             fg="white",
             command=lambda: self.switch_menu(self.current_period)
-        )
-        back_btn.grid(row=0, column=0, sticky="w", pady=5)
+        ).grid(row=0, column=0, sticky="w", pady=5)
 
         player = self.db.get_player()
 
@@ -418,8 +434,10 @@ class SkillUI:
             self.task_container.grid_rowconfigure(i, weight=0)
             self.task_container.grid_columnconfigure(i, weight=0)
 
-        self.task_container.grid_rowconfigure(0, weight=1)
-        self.task_container.grid_rowconfigure(1, weight=1)
+        self.task_container.grid_rowconfigure(0, weight=0)
+        self.task_container.grid_rowconfigure(1, weight=0)
+        self.task_container.grid_rowconfigure(2, weight=1)
+        self.task_container.grid_rowconfigure(3, weight=1)
         self.task_container.grid_columnconfigure(0, weight=1)
         self.task_container.grid_columnconfigure(1, weight=1)
 
@@ -474,7 +492,7 @@ class SkillUI:
         self.clear_content()
 
         tk.Label(self.task_container,
-                 text="Skill boost shop",
+                 text="Skill Boost Shop",
                  bg="#001833",
                  fg="white",
                  font=("Arial", 16, "bold")
@@ -491,14 +509,14 @@ class SkillUI:
                      fg="white"
                      ).grid(row=row, column=0, sticky="w")
 
-            buy_btn = tk.Button(self.task_container,
-                                text="Buy +20 XP (100 GOLD)",
-                                command=lambda s=skill["name"]: self.buy_skill(s))
-            buy_btn.grid(row=row, column=1, padx=10)
+            tk.Button(self.task_container,
+                      text="Buy +20 XP (100 GOLD)",
+                      command=lambda s=skill["name"]: self.buy_skill(s)
+                      ).grid(row=row, column=1, padx=10)
             row += 1
 
         tk.Button(self.task_container,
-                  text="<-Back",
+                  text="<- Back",
                   command=lambda: self.switch_menu(self.current_period)
                   ).grid(row=row + 1, column=0, pady=20)
 
@@ -790,3 +808,109 @@ class SkillUI:
                   font=("Arial", 11, "bold"),
                   command=save_skill
                   ).grid(row=1, column=0, columnspan=2, pady=10)
+
+    def show_history(self):
+        self.clear_content()
+
+        for i in range(10):
+            self.task_container.grid_rowconfigure(i, weight=0)
+            self.task_container.grid_columnconfigure(i, weight=0)
+
+        self.task_container.grid_rowconfigure(0, weight=0)
+        self.task_container.grid_rowconfigure(1, weight=1)
+        self.task_container.grid_columnconfigure(0, weight=1)
+        self.task_container.grid_columnconfigure(1, weight=1)
+        self.task_container.grid_columnconfigure(2, weight=0)
+
+        tk.Label(self.task_container,
+                 text="Task History",
+                 bg="#001833",
+                 fg="white",
+                 font=("Arial", 16, "bold")
+                 ).grid(row=0, column=0, pady=10)
+
+        tk.Button(self.task_container,
+                  text="<- Back",
+                  bg="#003366",
+                  fg="white",
+                  command=lambda: self.switch_menu(self.current_period)
+                  ).grid(row=0, column=1, sticky="e", padx=20)
+
+        canvas = tk.Canvas(self.task_container, bg="#001833", highlightthickness=0)
+        canvas.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=10)
+
+        scrollbar = ttk.Scrollbar(self.task_container, orient="vertical", command=canvas.yview)
+        scrollbar.grid(row=1, column=2, sticky="ns")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        history_frame = tk.Frame(canvas, bg="#001833")
+        canvas_window = canvas.create_window((0, 0), window=history_frame, anchor="nw")
+
+        history_frame.bind("<Configure>", lambda e: canvas.configure(
+            scrollregion=canvas.bbox("all")
+        ))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfig(
+            canvas_window, width=e.width
+        ))
+        canvas.bind("<MouseWheel>", lambda e: canvas.yview_scroll(
+            int(-1 * (e.delta / 120)), "units"
+        ))
+
+        history = self.db.get_task_history()
+
+        if not history:
+            tk.Label(history_frame,
+                     text="No completed tasks yet. Get to work!",
+                     bg="#001833",
+                     fg="#aaaaaa",
+                     font=("Arial", 11)
+                     ).pack(pady=20)
+            return
+
+        headers = ["Date", "Task", "Difficulty"]
+        for col, header in enumerate(headers):
+            tk.Label(history_frame,
+                     text=header,
+                     bg="#001833",
+                     fg="#aaaaaa",
+                     font=("Arial", 10, "bold")
+                     ).grid(row=0, column=col, padx=20, pady=(10, 5), sticky="w")
+
+        difficulty_colors = {
+            "easy":   "#00cc66",
+            "medium": "#ffcc00",
+            "hard":   "#ff4444"
+        }
+
+        for index, (title, difficulty, date_str) in enumerate(history):
+            row = index + 1
+            diff_lower = (difficulty or "medium").lower()
+            diff_color = difficulty_colors.get(diff_lower, "#aaaaaa")
+
+            tk.Label(history_frame,
+                     text=date_str or "—",
+                     bg="#001833",
+                     fg="#aaaaaa",
+                     font=("Arial", 10)
+                     ).grid(row=row, column=0, padx=20, pady=3, sticky="w")
+
+            tk.Label(history_frame,
+                     text=title,
+                     bg="#001833",
+                     fg="#E0E0E0",
+                     font=("Arial", 10)
+                     ).grid(row=row, column=1, padx=20, pady=3, sticky="w")
+
+            tk.Label(history_frame,
+                     text=(difficulty or "Medium").capitalize(),
+                     bg="#001833",
+                     fg=diff_color,
+                     font=("Arial", 10, "bold")
+                     ).grid(row=row, column=2, padx=20, pady=3, sticky="w")
+
+        tk.Label(history_frame,
+                 text=f"Total completions: {len(history)}",
+                 bg="#001833",
+                 fg="#aaaaaa",
+                 font=("Arial", 10, "italic")
+                 ).grid(row=len(history) + 1, column=0, columnspan=3, pady=15)
