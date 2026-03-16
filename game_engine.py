@@ -131,3 +131,52 @@ class GameEngine:
                 print(f"Skill {skill['name']} leveled up! New level: {skill['level']}, XP: {skill['xp']}")
             else:
                 break
+            
+    def check_login_reward(self):
+        from datetime import date,datetime
+        
+        player= self.db.get_player()
+        today=date.today()
+        today_str= today.isoformat()
+        
+        last_login = player.get("last_login")
+        login_streak= player.get("login_streak", 0)
+        
+        if last_login == today_str:
+            return None
+        
+        if last_login:
+            last_date= datetime.strptime(last_login, "%Y-%m-%d").date()
+            diff = (today - last_date).days
+            
+            if diff == 1:
+                login_streak += 1
+            else:
+                login_streak = 1
+        else:
+            login_streak = 1
+            
+            
+        gold = 10
+        oxp = 10
+        
+        if login_streak >= 7:
+            gold, oxp = 50, 50
+            bonus_msg = "7 Day Login Streak! MEGA Reward!"
+        elif login_streak >= 3:
+            gold, oxp = 25, 25
+            bonus_msg = f"{login_streak} Day Streak! Bonus reward!"
+        else:
+            bonus_msg = f"Day {login_streak} streak. Keep it up!"
+
+        player["gold"] += gold
+        player["oxp"] += oxp
+        self.check_player_level_up(player)
+        self.db.update_player(player)
+        self.db.update_login(today_str, login_streak)
+
+        return {"gold": gold,
+            "oxp": oxp,
+            "streak": login_streak,
+            "message": bonus_msg
+        }

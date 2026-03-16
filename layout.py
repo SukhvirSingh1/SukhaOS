@@ -914,3 +914,48 @@ class SkillUI:
                  fg="#aaaaaa",
                  font=("Arial", 10, "italic")
                  ).grid(row=len(history) + 1, column=0, columnspan=3, pady=15)
+        
+        
+    def show_login_reward(self, reward):
+        popup = tk.Toplevel(self.root)
+        popup.title("Daily Reward")
+        popup.geometry("320x320")
+        popup.config(bg="#00254d")
+        popup.grab_set()
+        
+        tk.Label(popup,
+                 text="Daily Login Reward!",
+                 bg="#00254d",
+                 fg="#ffcc00",
+                 font=("Arial",14,"bold")
+                 ).pack(pady=(20,5))
+        
+        tk.Label(popup,
+                 text=reward["message"],
+                bg="#00254d",
+                fg="#E0E0E0",
+                font=("Arial", 10)
+                ).pack(pady=5)
+
+        tk.Label(popup,
+             text=f"+ {reward['gold']} Gold     + {reward['oxp']} OXP",
+             bg="#00254d",
+             fg="#00ccff",
+             font=("Arial", 12, "bold")
+             ).pack(pady=10)
+
+        tk.Label(popup,
+             text=f"Login Streak: {reward['streak']} days 🔥",
+             bg="#00254d",
+             fg="orange",
+             font=("Arial", 11)
+             ).pack(pady=5)
+
+        tk.Button(popup,
+              text="Claim!",
+              bg="#003366",
+              fg="white",
+              font=("Arial", 11, "bold"),
+              command=lambda: [popup.destroy(),
+                               self.refresh_player_ui()]
+              ).pack(pady=15)

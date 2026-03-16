@@ -13,13 +13,20 @@ class SukhaOS:
     def __init__(self, root):
         self.root = root
         self.root.title("SukhaOS")
-        self.root.geometry("1000x550")
+        self.root.geometry("1280x720")
         
         self.db = Database()
         self.db.reset_tasks()  # Reset daily tasks on startup
         
         self.engine = GameEngine(self.db)
         self.skill_ui = SkillUI(self.root, self.db, self.engine)
+        
+        self.root.after(500, self.check_login_reward)
+        
+    def check_login_reward(self):
+        reward = self.engine.check_login_reward()
+        if reward:
+            self.skill_ui.show_login_reward(reward)
         
 
         

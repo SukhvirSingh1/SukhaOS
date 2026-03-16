@@ -13,7 +13,9 @@ class Database:
                 id INTEGER PRIMARY KEY,
                 oxp INTEGER DEFAULT 0,
                 level INTEGER DEFAULT 1,
-                gold INTEGER DEFAULT 0
+                gold INTEGER DEFAULT 0,
+                last_login TEXT,
+                login_streak INTEGER DEFAULT 0
             )
         ''')
         cursor.execute('''
@@ -98,11 +100,17 @@ class Database:
             self.conn.commit()
             cursor.execute("SELECT * FROM player LIMIT 1")
             row = cursor.fetchone()
-        return {"id": row[0], "oxp": row[1], "level": row[2], "gold": row[3]}
+        return {"id": row[0],
+                "oxp": row[1],
+                "level": row[2],
+                "gold": row[3],
+                "last_login": row[4] if len(row) > 4 else None,
+                "login_streak": row[5] if len(row) > 5 else 0
+                }
     
     def get_task(self, task_id):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, title, description, period, oxp, gold, status, last_completed, streak FROM task WHERE id=?", (task_id,))
+        cursor.execute("SELECT id, title, description, period, oxp, gold, status, last_completed, streak, difficulty FROM task WHERE id=?", (task_id,))
         row = cursor.fetchone()
         if row is None:
             return None 
@@ -115,7 +123,8 @@ class Database:
             "gold": row[5],
             "status": row[6],
             "last_completed": row[7],
-            "streak": row[8]
+            "streak": row[8],
+            "difficulty": row[9]
         }
     
     def get_task_rewards(self, task_id):
@@ -277,4 +286,9 @@ class Database:
         cursor = self.conn.cursor()
         cursor.execute("DELETE FROM skill WHERE name=?",(skill_name,))
         self.conn.commit()
-            
+        
+    def update_login(self, last_login, login_streak):
+        cursor = self.conn.cursor()
+        cursor.execute("UPDATE player SET last_login=?, login_streak=? WHERE id=1",
+                       (last_login, login_streak))
+        self.conn.commit()            
