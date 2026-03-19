@@ -2,10 +2,6 @@
 main.py
 =======
 Entry point for SukhaOS — a gamified productivity desktop app.
-
-Initialises the database, game engine, and UI in the correct order,
-then checks for the daily login reward after the UI has fully loaded.
-
 Run this file to launch the application:
     python main.py
 """
@@ -18,47 +14,56 @@ from layout import SkillUI
 
 class SukhaOS:
     """
-    Root application class for SukhaOS.
-    Wires together the three core components:
-        - Database  → persistent storage (SQLite)
-        - GameEngine → game logic (XP, levels, rewards)
-        - SkillUI   → user interface (tkinter)
+    Root application class. Wires together Database, GameEngine, and SkillUI.
     """
 
     def __init__(self, root):
         """
-        Initialise the application window and all core components.
+        Initialise the app window and all core components.
 
         Args:
             root (tk.Tk): The main tkinter window.
         """
         self.root = root
         self.root.title("SukhaOS")
-        self.root.state("zoomed")   # launch maximised on Windows
+        self.root.state("zoomed")
 
-        # --- Initialise core components in dependency order ---
-        self.db = Database()            # database first — others depend on it
-        self.db.reset_tasks()           # reset expired tasks on every launch
+        # Initialise in dependency order
+        self.db     = Database()
+        self.db.reset_tasks()
 
-        self.engine = GameEngine(self.db)           # engine needs database
-        self.skill_ui = SkillUI(self.root, self.db, self.engine)  # UI needs both
+        self.engine   = GameEngine(self.db)
+        self.skill_ui = SkillUI(self.root, self.db, self.engine)
 
-        # --- Check login reward after UI is ready ---
-        # 500ms delay ensures the main window is fully rendered before popup appears
-        self.root.after(500, self.check_login_reward)
+        # Check for first launch (no name set) — show name popup first
+        # then check login reward after name is set
+        self.root.after(300, self.check_first_launch)
 
-    def check_login_reward(self):
+    def check_first_launch(self):
         """
-        Ask the game engine if a daily login reward is due.
-        If so, display the reward popup via the UI.
-        Called once automatically 500ms after launch.
+        On first launch, player name is 'Hero' (default).
+        Show the name setup popup so the player can personalise their character.
+        Login reward is checked after name setup is complete.
+        """
+        player = self.db.get_player()
+
+        if player["name"] == "Hero" or not player["name"]:
+            # First launch — show name setup, login reward comes after
+            self.skill_ui.open_name_setup_popup(on_complete=self.check_login)
+        else:
+            # Returning player — go straight to login reward
+            self.check_login()
+
+    def check_login(self):
+        """
+        Check and display the daily login reward popup if due.
+        Called after name setup on first launch, or directly on returning launches.
         """
         reward = self.engine.check_login_reward()
         if reward:
             self.skill_ui.show_login_reward(reward)
 
 
-# --- Application entry point ---
 if __name__ == "__main__":
     root = tk.Tk()
     app = SukhaOS(root)

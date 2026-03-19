@@ -80,7 +80,6 @@ class Database:
         ''')
 
         # Task rewards — links tasks to skills with SXP amounts
-        # One task can reward multiple skills
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS task_reward (
                 task_id INTEGER,
@@ -99,7 +98,7 @@ class Database:
             )
         ''')
 
-        # Task history — log of every completed task for the heatmap and history screen
+        # Task history — log of every completed task
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS task_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -110,22 +109,27 @@ class Database:
             )
         ''')
 
-        # --- Safely add login columns to existing databases ---
-        # ALTER TABLE fails silently if column already exists
-        try:
-            cursor.execute("ALTER TABLE player ADD COLUMN last_login TEXT")
-        except:
-            pass
-
-        try:
-            cursor.execute("ALTER TABLE player ADD COLUMN login_streak INTEGER DEFAULT 0")
-        except:
-            pass
+        # --- Safely add new columns to existing databases ---
+        new_columns = [
+            ("ALTER TABLE player ADD COLUMN last_login TEXT",),
+            ("ALTER TABLE player ADD COLUMN login_streak INTEGER DEFAULT 0",),
+            ("ALTER TABLE player ADD COLUMN name TEXT DEFAULT 'Hero'",),
+            ("ALTER TABLE player ADD COLUMN current_hp INTEGER DEFAULT 100",),
+            ("ALTER TABLE player ADD COLUMN max_hp INTEGER DEFAULT 100",),
+        ]
+        for (sql,) in new_columns:
+            try:
+                cursor.execute(sql)
+            except:
+                pass  # column already exists — skip silently
 
         # --- Seed default player if none exists ---
         cursor.execute("SELECT COUNT(*) FROM player")
         if cursor.fetchone()[0] == 0:
-            cursor.execute("INSERT INTO player (id, oxp, level, gold) VALUES (1, 0, 1, 0)")
+            cursor.execute("""
+                INSERT INTO player (id, oxp, level, gold, current_hp, max_hp)
+                VALUES (1, 0, 1, 0, 100, 100)
+            """)
 
         # --- Seed default skills ---
         default_skills = ["Mind", "Health", "Strength", "IQ", "Programming", "Editing"]
@@ -157,18 +161,19 @@ class Database:
     def get_player(self):
         """
         Fetch the single player record from the database.
-        Creates a default player if none exists (safety fallback).
 
         Returns:
-            dict: Player data with keys: id, oxp, level, gold, last_login, login_streak.
+            dict: Player data with all keys including name, current_hp, max_hp.
         """
         cursor = self.conn.cursor()
         cursor.execute("SELECT * FROM player LIMIT 1")
         row = cursor.fetchone()
 
         if row is None:
-            # Fallback: recreate player if somehow deleted
-            cursor.execute("INSERT INTO player (id, oxp, level, gold) VALUES (1, 0, 1, 0)")
+            cursor.execute("""
+                INSERT INTO player (id, oxp, level, gold, current_hp, max_hp)
+                VALUES (1, 0, 1, 0, 100, 100)
+            """)
             self.conn.commit()
             cursor.execute("SELECT * FROM player LIMIT 1")
             row = cursor.fetchone()
@@ -179,7 +184,10 @@ class Database:
             "level":        row[2],
             "gold":         row[3],
             "last_login":   row[4] if len(row) > 4 else None,
-            "login_streak": row[5] if len(row) > 5 else 0
+            "login_streak": row[5] if len(row) > 5 else 0,
+            "name":         row[6] if len(row) > 6 else "Hero",
+            "current_hp":   row[7] if len(row) > 7 else 100,
+            "max_hp":       row[8] if len(row) > 8 else 100,
         }
 
     def update_player(self, player):
@@ -187,19 +195,54 @@ class Database:
         Save updated player data back to the database.
 
         Args:
-            player (dict): Player dict with keys: oxp, level, gold, id.
+            player (dict): Player dict with all keys.
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            UPDATE player
+            SET oxp=?, level=?, gold=?, current_hp=?, max_hp=?
+            WHERE id=?
+        """, (
+            player["oxp"],
+            player["level"],
+            player["gold"],
+            player["current_hp"],
+            player["max_hp"],
+            player["id"]
+        ))
+        self.conn.commit()
+
+    def set_player_name(self, name):
+        """
+        Set the player's character name.
+        Called once on first launch from the name setup popup.
+
+        Args:
+            name (str): The chosen character name.
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("UPDATE player SET name=? WHERE id=1", (name,))
+        self.conn.commit()
+
+    def update_hp(self, current_hp, max_hp):
+        """
+        Update the player's current and max HP directly.
+        Used when HP changes outside of a full player update.
+
+        Args:
+            current_hp (int): New current HP value.
+            max_hp (int): New max HP value.
         """
         cursor = self.conn.cursor()
         cursor.execute(
-            "UPDATE player SET oxp=?, level=?, gold=? WHERE id=?",
-            (player["oxp"], player["level"], player["gold"], player["id"])
+            "UPDATE player SET current_hp=?, max_hp=? WHERE id=1",
+            (current_hp, max_hp)
         )
         self.conn.commit()
 
     def update_login(self, last_login, login_streak):
         """
         Update the player's last login date and login streak count.
-        Called once per day on app launch via check_login_reward().
 
         Args:
             last_login (str): Today's date in 'YYYY-MM-DD' format.
@@ -286,11 +329,11 @@ class Database:
             description (str): Short description of the task.
             period (str): 'daily', 'weekly', 'monthly', or 'yearly'.
             difficulty (str): 'Easy', 'Medium', or 'Hard'.
-            oxp (int): OXP reward amount (pre-calculated with difficulty multiplier).
-            gold (int): Gold reward amount (pre-calculated with difficulty multiplier).
+            oxp (int): OXP reward amount.
+            gold (int): Gold reward amount.
 
         Returns:
-            int: The new task's ID (lastrowid).
+            int: The new task's ID.
         """
         cursor = self.conn.cursor()
         cursor.execute("""
@@ -331,7 +374,7 @@ class Database:
 
     def mark_task_completed(self, task_id):
         """
-        Set a task's status to 'Completed' and record today's date as last_completed.
+        Set a task's status to 'Completed' and record today's date.
 
         Args:
             task_id (int): ID of the task to mark complete.
@@ -360,13 +403,7 @@ class Database:
     def reset_tasks(self):
         """
         Reset tasks to 'Pending' if their period has elapsed since last completion.
-        Called once on app startup in main.py.
-
-        Logic:
-            - Daily: resets if last completed was not today
-            - Weekly: resets if last completed was in a different calendar week
-            - Monthly: resets if last completed was in a different month
-            - Yearly: resets if last completed was in a different year
+        Called once on app startup.
         """
         from datetime import date, datetime
         today = date.today()
@@ -377,7 +414,7 @@ class Database:
 
         for task_id, period, last_completed in tasks:
             if last_completed is None:
-                continue  # never completed — nothing to reset
+                continue
 
             last_date = datetime.strptime(last_completed, "%Y-%m-%d").date()
             reset = False
@@ -464,7 +501,6 @@ class Database:
         row = cursor.fetchone()
 
         if row is None:
-            # Auto-create skill if not found (safety fallback)
             cursor.execute(
                 "INSERT INTO skill (name, xp, level) VALUES (?, 0, 1)", (skill_name,)
             )
@@ -489,19 +525,18 @@ class Database:
 
     def add_skill(self, skill_name):
         """
-        Add a new custom skill. Prevents duplicate skill names.
+        Add a new custom skill. Prevents duplicates.
 
         Args:
             skill_name (str): Name of the new skill.
 
         Returns:
-            True if skill was added successfully.
-            False if a skill with that name already exists.
+            True if added, False if duplicate.
         """
         cursor = self.conn.cursor()
         cursor.execute("SELECT name FROM skill WHERE name=?", (skill_name,))
         if cursor.fetchone():
-            return False  # duplicate
+            return False
 
         cursor.execute(
             "INSERT INTO skill(name, xp, level) VALUES (?, 0, 1)", (skill_name,)
@@ -512,7 +547,6 @@ class Database:
     def delete_skill(self, skill_name):
         """
         Delete a skill from the database.
-        Does not affect task_reward rows — existing task links are preserved.
 
         Args:
             skill_name (str): Name of the skill to delete.
@@ -527,7 +561,7 @@ class Database:
 
     def unlock_achievement(self, title):
         """
-        Mark an achievement as unlocked. Safe to call even if already unlocked.
+        Mark an achievement as unlocked.
 
         Args:
             title (str): The achievement title to unlock.
@@ -544,7 +578,6 @@ class Database:
 
         Returns:
             list of dicts: Each with 'title', 'description', 'unlocked' keys.
-                           unlocked is 1 (True) or 0 (False).
         """
         cursor = self.conn.cursor()
         cursor.execute("SELECT title, description, unlocked FROM achievement")
@@ -558,7 +591,6 @@ class Database:
     def get_task_history(self):
         """
         Fetch all completed task history entries, most recent first.
-        Used by the Task History Log screen and the habit heatmap.
 
         Returns:
             list of tuples: Each tuple is (title, difficulty, date_completed).
@@ -576,8 +608,5 @@ class Database:
     # -------------------------------------------------------------------------
 
     def commit(self):
-        """
-        Manually commit any pending database transactions.
-        Most methods auto-commit, but this is available for batch operations.
-        """
+        """Manually commit any pending database transactions."""
         self.conn.commit()

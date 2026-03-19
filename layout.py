@@ -2,17 +2,6 @@
 layout.py
 =========
 Defines the SkillUI class — the entire user interface for SukhaOS.
-Responsible for building all frames, rendering task cards,
-handling popups, and refreshing the UI after game state changes.
-
-UI is built with tkinter and organised into three main zones:
-    - Top Left  : Skills panel (scrollable, with add/delete)
-    - Top Right : Player info (level, gold, XP bar, action buttons)
-    - Bottom    : Task area (sidebar navigation + main content container)
-
-The content container (task_container) is reused across all screens —
-show_tasks(), show_stats(), show_shop(), show_history() all clear and
-redraw it. This avoids creating multiple frames that fight for space.
 """
 
 import tkinter as tk
@@ -20,8 +9,6 @@ from tkinter import ttk, messagebox
 import matplotlib.pyplot as plt
 from heatmap import show_heatmap
 
-
-# Reward values per task period — used when calculating task rewards on creation
 PERIOD_REWARDS = {
     "daily":   {"gold": 20,  "oxp": 20,  "sxp": 10},
     "weekly":  {"gold": 50,  "oxp": 60,  "sxp": 25},
@@ -31,25 +18,11 @@ PERIOD_REWARDS = {
 
 
 class SkillUI:
-    """
-    Main UI class for SukhaOS.
-    All tkinter widgets are created and managed here.
-    Communicates with the database and game engine via self.db and self.engine.
-    """
-
     def __init__(self, root, db, engine):
-        """
-        Initialise the UI with references to the database and game engine.
-
-        Args:
-            root (tk.Tk): The main application window.
-            db: Database instance from database.py.
-            engine: GameEngine instance from game_engine.py.
-        """
         self.root = root
         self.db = db
         self.engine = engine
-        self.current_period = "daily"   # tracks which period tab is active
+        self.current_period = "daily"
         self.build_ui()
 
     # -------------------------------------------------------------------------
@@ -57,17 +30,12 @@ class SkillUI:
     # -------------------------------------------------------------------------
 
     def build_ui(self):
-        """
-        Build the full application layout.
-        Called once during __init__. Creates all three main zones:
-        skills panel (top left), player info (top right), task area (bottom).
-        """
+        """Build the full application layout — skills panel, player info, task area."""
 
-        # Root grid: 2 rows (top/bottom), 2 cols (left/right)
-        self.root.rowconfigure(0, weight=3, minsize=200)   # top zone — larger
-        self.root.rowconfigure(1, weight=1, minsize=150)   # bottom zone — smaller
-        self.root.columnconfigure(0, weight=3)   # left column — 30%
-        self.root.columnconfigure(1, weight=7)   # right column — 70%
+        self.root.rowconfigure(0, weight=3, minsize=200)
+        self.root.rowconfigure(1, weight=1, minsize=150)
+        self.root.columnconfigure(0, weight=3)
+        self.root.columnconfigure(1, weight=7)
 
         # ── TOP LEFT: Skills Panel ────────────────────────────────────────────
         chrctr_frame = tk.Frame(self.root, bg="#00254d", bd=2, relief="ridge")
@@ -75,19 +43,50 @@ class SkillUI:
 
         tk.Label(chrctr_frame,
                  text="Skills",
-                 bg="#00254d",
-                 fg="#E0E0E0",
+                 bg="#00254d", fg="#E0E0E0",
                  font=("Arial", 14, "bold")
-                 ).grid(row=0, column=0, pady=(20, 10))
+                 ).grid(row=0, column=0, columnspan=2, pady=(15, 5))
 
-        # Canvas + scrollbar for scrollable skill list
-        # Canvas is the visible viewport; skills_container is the full-height frame inside it
+        # --- HP display (bar + label) ---
+        # HP sits at the top of the skills panel so it's always visible
+        hp_frame = tk.Frame(chrctr_frame, bg="#00254d")
+        hp_frame.grid(row=1, column=0, columnspan=2, sticky="ew", padx=10, pady=(0, 8))
+        hp_frame.columnconfigure(0, weight=1)
+
+        self.hp_label = tk.Label(hp_frame,
+                                 text="HP: 100 / 100",
+                                 bg="#00254d", fg="#ff6666",
+                                 font=("Arial", 9, "bold"))
+        self.hp_label.grid(row=0, column=0, sticky="w")
+
+        # HP bar — red colour to distinguish from XP bar
+        style = ttk.Style()
+        style.theme_use('clam')
+        style.configure("HP.Horizontal.TProgressbar",
+                        troughcolor="#001833",
+                        background="#ff4444",
+                        thickness=12,
+                        bordercolor="#001833",
+                        lightcolor="#ff4444",
+                        darkcolor="#ff4444")
+
+        self.hp_bar = ttk.Progressbar(hp_frame,
+                                      orient="horizontal",
+                                      mode="determinate",
+                                      style="HP.Horizontal.TProgressbar")
+        self.hp_bar.grid(row=1, column=0, sticky="ew", pady=(2, 0))
+
+        # Divider line between HP and skills list
+        tk.Frame(chrctr_frame, bg="#003366", height=1
+                 ).grid(row=2, column=0, columnspan=2, sticky="ew", padx=10, pady=(0, 5))
+
+        # --- Scrollable skill list ---
         self.skills_canvas = tk.Canvas(chrctr_frame, bg="#00254d", highlightthickness=0)
-        self.skills_canvas.grid(row=1, column=0, sticky="nsew", padx=(10, 0))
+        self.skills_canvas.grid(row=3, column=0, sticky="nsew", padx=(10, 0))
 
         skills_scrollbar = ttk.Scrollbar(chrctr_frame, orient="vertical",
                                          command=self.skills_canvas.yview)
-        skills_scrollbar.grid(row=1, column=1, sticky="ns")
+        skills_scrollbar.grid(row=3, column=1, sticky="ns")
         self.skills_canvas.configure(yscrollcommand=skills_scrollbar.set)
 
         self.skills_container = tk.Frame(self.skills_canvas, bg="#00254d")
@@ -95,29 +94,24 @@ class SkillUI:
             (0, 0), window=self.skills_container, anchor="nw"
         )
 
-        # Keep scroll region in sync with content height
         self.skills_container.bind("<Configure>", lambda e: self.skills_canvas.configure(
             scrollregion=self.skills_canvas.bbox("all")
         ))
-        # Keep content width in sync with canvas width
         self.skills_canvas.bind("<Configure>", lambda e: self.skills_canvas.itemconfig(
             self.skills_canvas_window, width=e.width
         ))
-        # Mouse wheel scrolling
         self.skills_canvas.bind("<MouseWheel>", lambda e: self.skills_canvas.yview_scroll(
             int(-1 * (e.delta / 120)), "units"
         ))
 
         tk.Button(chrctr_frame,
                   text="+ Add Skill",
-                  bg="#003366",
-                  fg="#E0E0E0",
+                  bg="#003366", fg="#E0E0E0",
                   font=("Arial", 9, "bold"),
                   command=self.open_add_skill_popup
-                  ).grid(row=2, column=0, columnspan=2, pady=(0, 10))
+                  ).grid(row=4, column=0, columnspan=2, pady=(0, 10))
 
-        chrctr_frame.rowconfigure(1, weight=1)
-        chrctr_frame.rowconfigure(2, weight=0)
+        chrctr_frame.rowconfigure(3, weight=1)
         chrctr_frame.columnconfigure(0, weight=1)
         chrctr_frame.columnconfigure(1, weight=0)
 
@@ -125,37 +119,27 @@ class SkillUI:
         info_frame = tk.Frame(self.root, bg="#00254d", bd=2, relief="ridge")
         info_frame.grid(row=0, column=1, sticky="nsew")
 
-        # Row layout for info_frame:
-        # 0 - character level label
-        # 1 - gold label
-        # 2 - add task button
-        # 3 - XP progress bar
-        # 4 - stats button
-        # 5 - habit map button
-        # 6 - empty spacer (weight=1 pushes all content upward)
         for i in range(6):
             info_frame.rowconfigure(i, weight=0)
-        info_frame.rowconfigure(6, weight=1)    # spacer
+        info_frame.rowconfigure(6, weight=1)   # spacer
         info_frame.columnconfigure(0, weight=1)
 
+        # Character name label — updated after name is set
         self.level_label = tk.Label(info_frame,
-                                    text="Character lvl 1",
-                                    bg="#00254d",
-                                    fg="#E0E0E0",
+                                    text="Hero  |  lvl 1",
+                                    bg="#00254d", fg="#E0E0E0",
                                     font=("Arial", 16, "bold"))
         self.level_label.grid(row=0, column=0, pady=20)
 
         self.gold_label = tk.Label(info_frame,
                                    text="Gold: 0",
-                                   bg="#00254d",
-                                   fg="gold",
+                                   bg="#00254d", fg="gold",
                                    font=("Arial", 12))
         self.gold_label.grid(row=1, column=0, pady=(0, 15))
 
         tk.Button(info_frame,
                   text="Add Task",
-                  bg="#003366",
-                  fg="#E0E0E0",
+                  bg="#003366", fg="#E0E0E0",
                   font=("Arial", 12, "bold"),
                   command=self.open_add_task_popup
                   ).grid(row=2, column=0, pady=(0, 15))
@@ -168,16 +152,14 @@ class SkillUI:
 
         tk.Button(info_frame,
                   text="Stats",
-                  bg="#003366",
-                  fg="white",
+                  bg="#003366", fg="white",
                   font=("Arial", 11, "bold"),
                   command=self.show_stats
                   ).grid(row=4, column=0, pady=15)
 
         tk.Button(info_frame,
                   text="Habit Map",
-                  bg="#003366",
-                  fg="white",
+                  bg="#003366", fg="white",
                   font=("Arial", 11, "bold"),
                   command=self.show_heatmap
                   ).grid(row=5, column=0, pady=(0, 15))
@@ -186,47 +168,35 @@ class SkillUI:
         tasks_frame = tk.Frame(self.root, bg="#001833", bd=2, relief="ridge")
         tasks_frame.grid(row=1, column=0, columnspan=2, sticky="nsew")
         tasks_frame.rowconfigure(0, weight=1)
-        tasks_frame.columnconfigure(0, weight=0)   # sidebar — fixed width
-        tasks_frame.columnconfigure(1, weight=1)   # content — expands
+        tasks_frame.columnconfigure(0, weight=0)
+        tasks_frame.columnconfigure(1, weight=1)
 
-        # Sidebar navigation buttons
         side_bar = tk.Frame(tasks_frame, bg="#003366")
         side_bar.grid(row=0, column=0, sticky="ns", padx=15)
 
-        # Period buttons (D/W/M/Y) — rows 0-3
         self.bottons = {}
-        btn_names  = ["daily", "weekly", "monthly", "yearly"]
-        btn_labels = ["D", "W", "M", "Y"]
-
-        for i, (name, label) in enumerate(zip(btn_names, btn_labels)):
-            btn = tk.Button(side_bar,
-                            text=label,
-                            bg="#003366",
-                            fg="#E0E0E0",
+        for i, (name, label) in enumerate(zip(
+            ["daily", "weekly", "monthly", "yearly"], ["D", "W", "M", "Y"]
+        )):
+            btn = tk.Button(side_bar, text=label,
+                            bg="#003366", fg="#E0E0E0",
                             font=("Arial", 10, "bold"),
                             command=lambda n=name: self.switch_menu(n))
             btn.grid(row=i, column=0, pady=10)
             self.bottons[name] = btn
 
-        # Log button — row 4
-        tk.Button(side_bar,
-                  text="Log",
-                  bg="#003366",
-                  fg="white",
+        tk.Button(side_bar, text="Log",
+                  bg="#003366", fg="white",
                   font=("Arial", 10, "bold"),
                   command=self.show_history
                   ).grid(row=4, column=0, pady=10)
 
-        # Shop button — row 5
-        tk.Button(side_bar,
-                  text="Shop",
-                  bg="#003366",
-                  fg="white",
+        tk.Button(side_bar, text="Shop",
+                  bg="#003366", fg="white",
                   font=("Arial", 10, "bold"),
                   command=self.show_shop
                   ).grid(row=5, column=0, pady=10)
 
-        # Main content area — all screens render inside this frame
         self.task_container = tk.Frame(tasks_frame, bg="#001833")
         self.task_container.grid(row=0, column=1, sticky="nsew", padx=20)
 
@@ -234,7 +204,6 @@ class SkillUI:
             self.task_container.grid_rowconfigure(i, weight=1)
             self.task_container.grid_columnconfigure(i, weight=1)
 
-        # XP label (shows "current / required OXP")
         self.xp_label = tk.Label(tasks_frame,
                                  text="0 / 100 OXP",
                                  bg="#001833",
@@ -242,18 +211,13 @@ class SkillUI:
                                  fg="#aaaaaa")
         self.xp_label.grid(row=3, column=0)
 
-        # Progress bar style
         style = ttk.Style()
         style.theme_use('clam')
         style.configure("TProgressbar",
-                        troughcolor="#001833",
-                        background="#00ccff",
-                        thickness=18,
-                        bordercolor="#001833",
-                        lightcolor="#00ccff",
-                        darkcolor="#00ccff")
+                        troughcolor="#001833", background="#00ccff",
+                        thickness=18, bordercolor="#001833",
+                        lightcolor="#00ccff", darkcolor="#00ccff")
 
-        # Initial render
         self.switch_menu("daily")
         self.refresh_player_ui()
         self.refresh_skill_ui()
@@ -263,12 +227,7 @@ class SkillUI:
     # -------------------------------------------------------------------------
 
     def refresh_skill_ui(self):
-        """
-        Clear and redraw the skills panel.
-        Called after any skill change (add, delete, level up, XP gain).
-        Each skill gets a label showing name, level, XP progress,
-        and a small red 'x' delete button.
-        """
+        """Clear and redraw the skills list. Called after any skill change."""
         for widget in self.skills_container.winfo_children():
             widget.destroy()
 
@@ -277,8 +236,7 @@ class SkillUI:
         if not skills:
             tk.Label(self.skills_container,
                      text="No skills yet",
-                     bg="#00254d",
-                     fg="#E0E0E0",
+                     bg="#00254d", fg="#E0E0E0",
                      font=("Arial", 10)
                      ).grid(row=0, column=0)
             return
@@ -289,20 +247,15 @@ class SkillUI:
 
             tk.Label(self.skills_container,
                      text=skill_text,
-                     bg="#00254d",
-                     fg="#E0E0E0",
-                     anchor="w",
-                     font=("Arial", 10)
+                     bg="#00254d", fg="#E0E0E0",
+                     anchor="w", font=("Arial", 10)
                      ).grid(row=index, column=0, sticky="ew", pady=3)
 
-            # Delete button — small red x, no border, hand cursor
             tk.Button(self.skills_container,
                       text="x",
-                      bg="#00254d",
-                      fg="#ff4444",
+                      bg="#00254d", fg="#ff4444",
                       font=("Arial", 8, "bold"),
-                      bd=0,
-                      cursor="hand2",
+                      bd=0, cursor="hand2",
                       command=lambda n=skill["name"]: self.delete_skill(n)
                       ).grid(row=index, column=1, padx=(5, 0), pady=3)
 
@@ -310,18 +263,9 @@ class SkillUI:
         self.skills_container.columnconfigure(1, weight=0)
 
     def delete_skill(self, skill_name):
-        """
-        Ask for confirmation then delete a skill.
-        Existing task rewards linked to the skill are not removed.
-
-        Args:
-            skill_name (str): Name of the skill to delete.
-        """
-        confirm = messagebox.askyesno(
-            "Delete Skill",
-            f"Delete '{skill_name}'? This won't affect existing tasks."
-        )
-        if confirm:
+        """Ask for confirmation then delete a skill."""
+        if messagebox.askyesno("Delete Skill",
+                               f"Delete '{skill_name}'? This won't affect existing tasks."):
             self.db.delete_skill(skill_name)
             self.refresh_skill_ui()
 
@@ -330,23 +274,7 @@ class SkillUI:
     # -------------------------------------------------------------------------
 
     def create_task_card(self, row, col, task_id, title, description, status, streak, difficulty):
-        """
-        Render a single task card in the task container grid.
-        Each card shows: title, description, status (clickable), streak, difficulty,
-        and Edit / Delete buttons.
-
-        Clicking the status label triggers task completion.
-
-        Args:
-            row (int): Grid row in task_container.
-            col (int): Grid column in task_container.
-            task_id (int): Task's database ID.
-            title (str): Task title.
-            description (str): Task description.
-            status (str): 'Pending' or 'Completed'.
-            streak (int): Current streak count.
-            difficulty (str): 'Easy', 'Medium', or 'Hard'.
-        """
+        """Render a single task card. Clicking status label completes the task."""
         card = tk.Frame(self.task_container, bg="#003366", bd=0)
         card.grid(row=row, column=col, padx=15, pady=15, sticky="nsew")
 
@@ -358,7 +286,6 @@ class SkillUI:
                  font=("Arial", 10)
                  ).grid(row=1, column=1, sticky="w", padx=10)
 
-        # Status label — green if completed, orange if pending, clickable to complete
         status_color = "green" if status == "Completed" else "orange"
         status_label = tk.Label(card, text=status, bg="#003366", fg=status_color,
                                 font=("Arial", 9, "italic"), cursor="hand2")
@@ -386,25 +313,17 @@ class SkillUI:
     # -------------------------------------------------------------------------
 
     def show_tasks(self, period):
-        """
-        Render the task cards for the selected period.
-        Clears the content container first, then draws:
-        completion counter, progress bar, up to 4 task cards, and a graph button.
-
-        Args:
-            period (str): 'daily', 'weekly', 'monthly', or 'yearly'.
-        """
+        """Render task cards for the selected period."""
         for widget in self.task_container.winfo_children():
             widget.destroy()
 
-        # Reset all row/col weights before configuring for this screen
         for i in range(10):
             self.task_container.grid_rowconfigure(i, weight=0)
             self.task_container.grid_columnconfigure(i, weight=0)
 
         self.task_container.grid_rowconfigure(0, weight=0)
         self.task_container.grid_rowconfigure(1, weight=0)
-        self.task_container.grid_rowconfigure(2, weight=1)   # task card rows expand
+        self.task_container.grid_rowconfigure(2, weight=1)
         self.task_container.grid_rowconfigure(3, weight=1)
         self.task_container.grid_columnconfigure(0, weight=1)
         self.task_container.grid_columnconfigure(1, weight=1)
@@ -413,20 +332,17 @@ class SkillUI:
         completed = sum(1 for t in tasks if t["status"] == "Completed")
         total = len(tasks)
 
-        # Completion summary
         tk.Label(self.task_container,
                  text=f"{completed} / {total} tasks completed",
                  bg="#001833", fg="white", font=("Arial", 11, "bold")
                  ).grid(row=0, column=0, columnspan=2, pady=5)
 
-        # Overall completion progress bar
         ttk.Progressbar(self.task_container,
                         length=250,
                         maximum=total if total > 0 else 1,
                         value=completed
                         ).grid(row=1, column=0, columnspan=2, pady=5)
 
-        # Render up to 4 task cards in a 2x2 grid
         positions = [(2, 0), (2, 1), (3, 0), (3, 1)]
         for task, pos in zip(tasks, positions):
             self.create_task_card(
@@ -436,17 +352,12 @@ class SkillUI:
             )
 
         tk.Button(self.task_container,
-                  text="Show Graph",
-                  bg="#001833", fg="white",
+                  text="Show Graph", bg="#001833", fg="white",
                   command=self.show_task_graph
                   ).grid(row=4, column=1, pady=10)
 
     def show_stats(self):
-        """
-        Render the Stats screen showing character level, OXP, gold,
-        skill progress bars, and achievement list.
-        Replaces the task cards in the content container.
-        """
+        """Render the Stats screen with character info, skills, and achievements."""
         self.clear_content()
 
         for i in range(10):
@@ -469,23 +380,35 @@ class SkillUI:
                  bg="#001833", fg="white", font=("Arial", 16, "bold")
                  ).grid(row=0, column=0, columnspan=2, pady=10)
 
-        tk.Label(self.task_container, text=f"Level: {player['level']}",
+        tk.Label(self.task_container,
+                 text=f"Name: {player['name']}",
                  bg="#001833", fg="white"
                  ).grid(row=1, column=0, sticky="w", padx=20)
 
-        tk.Label(self.task_container, text=f"OXP: {player['oxp']}",
+        tk.Label(self.task_container,
+                 text=f"Level: {player['level']}",
                  bg="#001833", fg="white"
                  ).grid(row=2, column=0, sticky="w", padx=20)
 
-        tk.Label(self.task_container, text=f"Gold: {player['gold']}",
-                 bg="#001833", fg="white"
+        tk.Label(self.task_container,
+                 text=f"HP: {player['current_hp']} / {player['max_hp']}",
+                 bg="#001833", fg="#ff6666"
                  ).grid(row=3, column=0, sticky="w", padx=20)
+
+        tk.Label(self.task_container,
+                 text=f"OXP: {player['oxp']}",
+                 bg="#001833", fg="white"
+                 ).grid(row=4, column=0, sticky="w", padx=20)
+
+        tk.Label(self.task_container,
+                 text=f"Gold: {player['gold']}",
+                 bg="#001833", fg="white"
+                 ).grid(row=5, column=0, sticky="w", padx=20)
 
         self.show_skill_stats()
 
-        # Achievements section
         achievement = self.db.get_achievement()
-        start_row = 15
+        start_row = 16
 
         tk.Label(self.task_container, text="Achievements",
                  bg="#001833", fg="white", font=("Arial", 14, "bold")
@@ -501,13 +424,9 @@ class SkillUI:
             row += 1
 
     def show_skill_stats(self):
-        """
-        Render skill name, level, and XP progress bars inside the stats screen.
-        Called by show_stats() — uses task_container directly.
-        Starts at row 5 to leave space for player stats above.
-        """
+        """Render skill progress bars inside the stats screen. Starts at row 7."""
         skills = self.db.get_all_skills()
-        start_row = 5
+        start_row = 7
 
         for index, skill in enumerate(skills):
             required = 50 + (skill["level"] - 1) * 25
@@ -524,15 +443,10 @@ class SkillUI:
                                    sticky="w", padx=20, pady=5)
 
     def show_shop(self):
-        """
-        Render the Skill Boost Shop screen.
-        Lists all skills with a buy button for each.
-        Costs 100 gold for +20 XP to the selected skill.
-        """
+        """Render the Skill Boost Shop."""
         self.clear_content()
 
-        tk.Label(self.task_container,
-                 text="Skill Boost Shop",
+        tk.Label(self.task_container, text="Skill Boost Shop",
                  bg="#001833", fg="white", font=("Arial", 16, "bold")
                  ).grid(row=0, column=0, pady=10)
 
@@ -557,12 +471,7 @@ class SkillUI:
                   ).grid(row=row + 1, column=0, pady=20)
 
     def show_history(self):
-        """
-        Render the Task History Log screen.
-        Shows a scrollable table of all completed tasks with date,
-        title, and colour-coded difficulty.
-        Pulls data from the task_history table via db.get_task_history().
-        """
+        """Render the Task History Log screen."""
         self.clear_content()
 
         for i in range(10):
@@ -573,10 +482,9 @@ class SkillUI:
         self.task_container.grid_rowconfigure(1, weight=1)
         self.task_container.grid_columnconfigure(0, weight=1)
         self.task_container.grid_columnconfigure(1, weight=1)
-        self.task_container.grid_columnconfigure(2, weight=0)   # scrollbar column
+        self.task_container.grid_columnconfigure(2, weight=0)
 
-        tk.Label(self.task_container,
-                 text="Task History",
+        tk.Label(self.task_container, text="Task History",
                  bg="#001833", fg="white", font=("Arial", 16, "bold")
                  ).grid(row=0, column=0, pady=10)
 
@@ -585,7 +493,6 @@ class SkillUI:
                   command=lambda: self.switch_menu(self.current_period)
                   ).grid(row=0, column=1, sticky="e", padx=20)
 
-        # Scrollable canvas for history rows
         canvas = tk.Canvas(self.task_container, bg="#001833", highlightthickness=0)
         canvas.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=10)
 
@@ -616,22 +523,16 @@ class SkillUI:
                      ).pack(pady=20)
             return
 
-        # Column headers
         for col, header in enumerate(["Date", "Task", "Difficulty"]):
             tk.Label(history_frame, text=header,
                      bg="#001833", fg="#aaaaaa", font=("Arial", 10, "bold")
                      ).grid(row=0, column=col, padx=20, pady=(10, 5), sticky="w")
 
-        difficulty_colors = {
-            "easy":   "#00cc66",
-            "medium": "#ffcc00",
-            "hard":   "#ff4444"
-        }
+        difficulty_colors = {"easy": "#00cc66", "medium": "#ffcc00", "hard": "#ff4444"}
 
         for index, (title, difficulty, date_str) in enumerate(history):
             row = index + 1
-            diff_lower = (difficulty or "medium").lower()
-            diff_color = difficulty_colors.get(diff_lower, "#aaaaaa")
+            diff_color = difficulty_colors.get((difficulty or "medium").lower(), "#aaaaaa")
 
             tk.Label(history_frame, text=date_str or "—",
                      bg="#001833", fg="#aaaaaa", font=("Arial", 10)
@@ -646,7 +547,6 @@ class SkillUI:
                      bg="#001833", fg=diff_color, font=("Arial", 10, "bold")
                      ).grid(row=row, column=2, padx=20, pady=3, sticky="w")
 
-        # Total count footer
         tk.Label(history_frame,
                  text=f"Total completions: {len(history)}",
                  bg="#001833", fg="#aaaaaa", font=("Arial", 10, "italic")
@@ -656,30 +556,79 @@ class SkillUI:
     # POPUPS
     # -------------------------------------------------------------------------
 
+    def open_name_setup_popup(self, on_complete=None):
+        """
+        First launch popup — asks the player to name their character.
+        Blocks the main window until a name is entered.
+        Calls on_complete() after name is saved.
+
+        Args:
+            on_complete (callable): Function to call after name is set.
+        """
+        popup = tk.Toplevel(self.root)
+        popup.title("Welcome to SukhaOS")
+        popup.geometry("380x250")
+        popup.config(bg="#00254d")
+        popup.grab_set()    # block main window until done
+        popup.resizable(False, False)
+
+        tk.Label(popup,
+                 text="Welcome to SukhaOS!",
+                 bg="#00254d", fg="#ffcc00",
+                 font=("Arial", 15, "bold")
+                 ).pack(pady=(25, 5))
+
+        tk.Label(popup,
+                 text="Enter your character name to begin:",
+                 bg="#00254d", fg="#E0E0E0",
+                 font=("Arial", 10)
+                 ).pack(pady=5)
+
+        name_entry = tk.Entry(popup,
+                              font=("Arial", 13),
+                              justify="center",
+                              width=20)
+        name_entry.pack(pady=15)
+        name_entry.focus()
+
+        def save_name():
+            name = name_entry.get().strip()
+            if not name:
+                messagebox.showerror("Error", "Please enter a name", parent=popup)
+                return
+            if len(name) > 20:
+                messagebox.showerror("Error", "Name too long (max 20 chars)", parent=popup)
+                return
+
+            self.db.set_player_name(name)
+            self.refresh_player_ui()    # update the level label with new name
+            popup.destroy()
+
+            if on_complete:
+                on_complete()           # trigger login reward check
+
+        name_entry.bind("<Return>", lambda e: save_name())
+
+        tk.Button(popup,
+                  text="Start Game!",
+                  bg="#003366", fg="#ffcc00",
+                  font=("Arial", 12, "bold"),
+                  command=save_name
+                  ).pack(pady=5)
+
     def open_add_task_popup(self):
-        """
-        Open a popup window to create a new task.
-        Collects: title, description, period, difficulty, skill 1, skill 2 (optional).
-        Calculates OXP/gold/SXP rewards based on period and difficulty multiplier.
-        Saves to database and refreshes the task view.
-        """
+        """Open a popup to create a new task."""
         popup = tk.Toplevel(self.root)
         popup.title("Add New Task")
         popup.geometry("400x400")
 
-        fields = [
-            ("Title:",           0),
-            ("Description:",     1),
-        ]
-        entries = {}
-        for label, row in fields:
-            tk.Label(popup, text=label, bg="#00254d", fg="#E0E0E0").grid(row=row, column=0, pady=5)
-            entry = tk.Entry(popup)
-            entry.grid(row=row, column=1)
-            entries[label] = entry
+        tk.Label(popup, text="Title:", bg="#00254d", fg="#E0E0E0").grid(row=0, column=0, pady=5)
+        title_entry = tk.Entry(popup)
+        title_entry.grid(row=0, column=1)
 
-        title_entry = entries["Title:"]
-        desc_entry  = entries["Description:"]
+        tk.Label(popup, text="Description:", bg="#00254d", fg="#E0E0E0").grid(row=1, column=0, pady=5)
+        desc_entry = tk.Entry(popup)
+        desc_entry.grid(row=1, column=1)
 
         tk.Label(popup, text="Period:", bg="#00254d", fg="#E0E0E0").grid(row=2, column=0, pady=5)
         period_var = tk.StringVar(value="daily")
@@ -697,12 +646,14 @@ class SkillUI:
 
         tk.Label(popup, text="Skill 1", bg="#00254d", fg="#E0E0E0").grid(row=4, column=0)
         skill1_var = tk.StringVar()
-        skill1_entry = ttk.Combobox(popup, values=skills, textvariable=skill1_var, state="readonly")
+        skill1_entry = ttk.Combobox(popup, values=skills,
+                                    textvariable=skill1_var, state="readonly")
         skill1_entry.grid(row=4, column=1)
 
         tk.Label(popup, text="Skill 2 (OPTIONAL)", bg="#00254d", fg="#E0E0E0").grid(row=5, column=0)
         skill2_var = tk.StringVar()
-        skill2_entry = ttk.Combobox(popup, values=skills, textvariable=skill2_var, state="readonly")
+        skill2_entry = ttk.Combobox(popup, values=skills,
+                                    textvariable=skill2_var, state="readonly")
         skill2_entry.grid(row=5, column=1)
 
         def save_task():
@@ -723,18 +674,18 @@ class SkillUI:
                 messagebox.showerror("Error", "At least one skill must be selected")
                 return
 
-            # Calculate rewards with difficulty multiplier
             DIFFICULTY_MULTIPLIER = {"Easy": 0.8, "Medium": 1.0, "Hard": 1.5}
             rewards = PERIOD_REWARDS[period]
             mult    = DIFFICULTY_MULTIPLIER[difficulty]
-            oxp     = int(rewards["oxp"] * mult)
-            gold    = int(rewards["gold"] * mult)
-            sxp     = int(rewards["sxp"] * mult)
 
-            task_id = self.db.add_task(title, description, period, difficulty, oxp, gold)
-            self.db.add_task_reward(task_id, skill1, sxp)
+            task_id = self.db.add_task(
+                title, description, period, difficulty,
+                int(rewards["oxp"] * mult),
+                int(rewards["gold"] * mult)
+            )
+            self.db.add_task_reward(task_id, skill1, int(rewards["sxp"] * mult))
             if skill2:
-                self.db.add_task_reward(task_id, skill2, sxp)
+                self.db.add_task_reward(task_id, skill2, int(rewards["sxp"] * mult))
 
             popup.destroy()
             self.show_tasks(self.current_period)
@@ -743,12 +694,7 @@ class SkillUI:
                   ).grid(row=6, column=0, columnspan=2, pady=20)
 
     def open_edit_task_popup(self, task_id):
-        """
-        Open a popup to edit an existing task's title, description, and period.
-
-        Args:
-            task_id (int): ID of the task to edit.
-        """
+        """Open a popup to edit an existing task."""
         task = self.db.get_task(task_id)
 
         popup = tk.Toplevel(self.root)
@@ -772,7 +718,8 @@ class SkillUI:
                      state="readonly").grid(row=2, column=1)
 
         def save_changes():
-            self.db.update_task(task_id, title_entry.get(), desc_entry.get(), period_var.get())
+            self.db.update_task(task_id, title_entry.get(),
+                                desc_entry.get(), period_var.get())
             popup.destroy()
             self.show_tasks(self.current_period)
 
@@ -780,11 +727,7 @@ class SkillUI:
                   ).grid(row=3, column=0, columnspan=2, pady=20)
 
     def open_add_skill_popup(self):
-        """
-        Open a popup to add a new custom skill.
-        Validates: not empty, max 20 characters, no duplicates.
-        Refreshes the skills panel on success.
-        """
+        """Open a popup to add a new custom skill."""
         popup = tk.Toplevel(self.root)
         popup.title("Add New Skill")
         popup.geometry("300x150")
@@ -824,18 +767,10 @@ class SkillUI:
     # -------------------------------------------------------------------------
 
     def complete_task(self, task_id):
-        """
-        Handle a task completion click.
-        Calls the game engine to process rewards, then refreshes the UI.
-        Shows a level-up message if the player leveled up from this completion.
-
-        Args:
-            task_id (int): ID of the task being completed.
-        """
+        """Handle a task completion click."""
         old_level = self.db.get_player()["level"]
 
         result = self.engine.complete_task(task_id)
-
         if result is False:
             messagebox.showinfo("Task", "Task already completed")
             return
@@ -850,25 +785,14 @@ class SkillUI:
         self.show_notification("Task Completed", "Great work! Rewards added.")
 
     def delete_task(self, task_id):
-        """
-        Ask for confirmation then permanently delete a task and its rewards.
-
-        Args:
-            task_id (int): ID of the task to delete.
-        """
+        """Ask for confirmation then delete a task."""
         if messagebox.askyesno("Confirm Deletion",
                                "This task will be permanently deleted.\n\nContinue?"):
             self.db.delete_task(task_id)
             self.show_tasks(self.current_period)
 
     def buy_skill(self, skill_name):
-        """
-        Attempt to purchase a skill XP boost from the shop.
-        Shows an error if the player can't afford it.
-
-        Args:
-            skill_name (str): Name of the skill to boost.
-        """
+        """Attempt to purchase a skill XP boost."""
         if self.engine.buy_skill_boost(skill_name):
             self.refresh_player_ui()
             self.refresh_skill_ui()
@@ -881,29 +805,18 @@ class SkillUI:
     # -------------------------------------------------------------------------
 
     def switch_menu(self, period):
-        """
-        Switch the active period tab and redraw the task list.
-
-        Args:
-            period (str): 'daily', 'weekly', 'monthly', or 'yearly'.
-        """
+        """Switch the active period tab."""
         self.current_period = period
         self.highlight_button(period)
         self.show_tasks(period)
 
     def highlight_button(self, period):
-        """
-        Visually highlight the active period button in the sidebar.
-        Active button is a brighter blue; inactive buttons are dark blue.
-
-        Args:
-            period (str): The currently active period.
-        """
+        """Highlight the active sidebar button."""
         for name, btn in self.bottons.items():
             btn.config(bg="#0059b3" if name == period else "#003366")
 
     def clear_content(self):
-        """Destroy all widgets inside the task_container to prepare for a new screen."""
+        """Destroy all widgets in the task container."""
         for widget in self.task_container.winfo_children():
             widget.destroy()
 
@@ -913,42 +826,62 @@ class SkillUI:
 
     def refresh_player_ui(self):
         """
-        Update all player-related UI elements:
-        level label, gold label, XP label, XP bar, and XP bar colour.
+        Update level label, gold, XP bar, and HP bar.
         Called after any action that changes player state.
         """
         player   = self.db.get_player()
         required = self.get_required_oxp(player["level"])
         current  = player["oxp"]
 
-        self.level_label.config(text=f"Character lvl {player['level']}")
+        # Show character name + level in header
+        name = player.get("name") or "Hero"
+        self.level_label.config(text=f"{name}  |  lvl {player['level']}")
         self.gold_label.config(text=f"Gold: {player['gold']}")
         self.xp_label.config(text=f"{current} / {required} OXP")
 
+        # XP bar
         self.xp_bar["maximum"] = required
         self.animate_bar(current)
 
-        # Bar colour changes with level — yellow → cyan → green
+        # XP bar colour changes with level
         if player["level"] >= 10:
-            color = "#00ff88"
+            xp_color = "#00ff88"
         elif player["level"] >= 5:
-            color = "#00ccff"
+            xp_color = "#00ccff"
         else:
-            color = "#ffcc00"
+            xp_color = "#ffcc00"
 
         style = ttk.Style()
         style.theme_use('clam')
         style.configure("XP.Horizontal.TProgressbar",
-                        background=color, lightcolor=color, darkcolor=color)
+                        background=xp_color,
+                        lightcolor=xp_color,
+                        darkcolor=xp_color)
+
+        # HP bar + label
+        current_hp = player.get("current_hp", 100)
+        max_hp     = player.get("max_hp", 100)
+
+        self.hp_label.config(text=f"HP: {current_hp} / {max_hp}")
+        self.hp_bar["maximum"] = max_hp
+        self.hp_bar["value"]   = current_hp
+
+        # HP bar colour changes based on health percentage
+        hp_pct = current_hp / max_hp if max_hp > 0 else 1
+        if hp_pct > 0.6:
+            hp_color = "#ff4444"    # healthy — red
+        elif hp_pct > 0.3:
+            hp_color = "#ff8800"    # low — orange
+        else:
+            hp_color = "#ffcc00"    # critical — yellow warning
+
+        style.configure("HP.Horizontal.TProgressbar",
+                        background=hp_color,
+                        lightcolor=hp_color,
+                        darkcolor=hp_color)
 
     def animate_bar(self, target):
-        """
-        Smoothly animate the XP bar from its current value to the target.
-        Increments by 1 every 5ms until the target is reached.
-
-        Args:
-            target (int): The target XP value to animate to.
-        """
+        """Smoothly animate the XP bar to the target value."""
         current = self.xp_bar["value"]
         if current < target:
             self.xp_bar["value"] = current + 1
@@ -959,14 +892,11 @@ class SkillUI:
     # -------------------------------------------------------------------------
 
     def show_heatmap(self):
-        """Open the GitHub-style habit heatmap in a matplotlib window."""
+        """Open the habit heatmap."""
         show_heatmap(self.db)
 
     def show_task_graph(self):
-        """
-        Show a bar chart of current period tasks broken down by difficulty.
-        Uses matplotlib. Counts Easy/Medium/Hard tasks and renders a simple bar chart.
-        """
+        """Show a bar chart of tasks by difficulty."""
         tasks = self.db.get_tasks_by_period(self.current_period)
         difficulty_count = {"Easy": 0, "Medium": 0, "Hard": 0}
 
@@ -987,14 +917,7 @@ class SkillUI:
     # -------------------------------------------------------------------------
 
     def show_notification(self, title, message):
-        """
-        Show a small auto-closing popup notification.
-        Disappears after 2 seconds automatically.
-
-        Args:
-            title (str): Popup window title and bold header text.
-            message (str): Body message shown below the title.
-        """
+        """Show a small auto-closing popup. Disappears after 2 seconds."""
         popup = tk.Toplevel(self.root)
         popup.title(title)
         popup.geometry("250x120")
@@ -1002,71 +925,64 @@ class SkillUI:
         tk.Label(popup, text=title, font=("Arial", 12, "bold")).pack(pady=5)
         tk.Label(popup, text=message, font=("Arial", 10)).pack(pady=5)
 
-        popup.after(2000, popup.destroy)    # auto-close after 2 seconds
+        popup.after(2000, popup.destroy)
 
     def show_login_reward(self, reward):
         """
-        Show the daily login reward popup with gold, OXP, and streak info.
-        Uses grab_set() to force the user to interact with it before the main window.
-        Claim button closes the popup and refreshes the player UI.
-
-        Args:
-            reward (dict): Contains 'gold', 'oxp', 'streak', 'message' keys.
-                           Returned by game_engine.check_login_reward().
+        Show the daily login reward popup.
+        Now also shows HP restored amount.
         """
         popup = tk.Toplevel(self.root)
         popup.title("Daily Reward")
-        popup.geometry("320x220")
+        popup.geometry("320x250")
         popup.config(bg="#00254d")
-        popup.grab_set()    # block interaction with main window until claimed
+        popup.grab_set()
 
         tk.Label(popup, text="Daily Login Reward!",
-                 bg="#00254d", fg="#ffcc00", font=("Arial", 14, "bold")
+                 bg="#00254d", fg="#ffcc00",
+                 font=("Arial", 14, "bold")
                  ).pack(pady=(20, 5))
 
         tk.Label(popup, text=reward["message"],
-                 bg="#00254d", fg="#E0E0E0", font=("Arial", 10)
+                 bg="#00254d", fg="#E0E0E0",
+                 font=("Arial", 10)
                  ).pack(pady=5)
 
-        tk.Label(popup, text=f"+ {reward['gold']} Gold     + {reward['oxp']} OXP",
-                 bg="#00254d", fg="#00ccff", font=("Arial", 12, "bold")
-                 ).pack(pady=10)
-
-        tk.Label(popup, text=f"Login Streak: {reward['streak']} days 🔥",
-                 bg="#00254d", fg="orange", font=("Arial", 11)
+        tk.Label(popup,
+                 text=f"+ {reward['gold']} Gold     + {reward['oxp']} OXP",
+                 bg="#00254d", fg="#00ccff",
+                 font=("Arial", 12, "bold")
                  ).pack(pady=5)
 
-        tk.Button(popup, text="Claim!",
-                  bg="#003366", fg="white", font=("Arial", 11, "bold"),
+        # Show HP restored if any was restored
+        if reward.get("hp_restored", 0) > 0:
+            tk.Label(popup,
+                     text=f"+ {reward['hp_restored']} HP restored",
+                     bg="#00254d", fg="#ff6666",
+                     font=("Arial", 10)
+                     ).pack(pady=2)
+
+        tk.Label(popup,
+                 text=f"Login Streak: {reward['streak']} days 🔥",
+                 bg="#00254d", fg="orange",
+                 font=("Arial", 11)
+                 ).pack(pady=5)
+
+        tk.Button(popup,
+                  text="Claim!",
+                  bg="#003366", fg="white",
+                  font=("Arial", 11, "bold"),
                   command=lambda: [popup.destroy(), self.refresh_player_ui()]
-                  ).pack(pady=15)
+                  ).pack(pady=10)
 
     # -------------------------------------------------------------------------
     # HELPER FORMULAS
     # -------------------------------------------------------------------------
 
     def get_required_oxp(self, level):
-        """
-        Calculate OXP required to reach the next character level.
-        Formula: 100 + (level - 1) * 50
-
-        Args:
-            level (int): Current character level.
-
-        Returns:
-            int: OXP needed to level up.
-        """
+        """OXP required for next level. Formula: 100 + (level-1) * 50"""
         return 100 + (level - 1) * 50
 
     def get_required_sxp(self, level):
-        """
-        Calculate SXP required to reach the next skill level.
-        Formula: 50 + (level - 1) * 25
-
-        Args:
-            level (int): Current skill level.
-
-        Returns:
-            int: SXP needed to level up the skill.
-        """
+        """SXP required for next skill level. Formula: 50 + (level-1) * 25"""
         return 50 + (level - 1) * 25

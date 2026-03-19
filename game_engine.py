@@ -3,9 +3,7 @@ game_engine.py
 ==============
 Core game logic for SukhaOS.
 Handles task completion rewards, XP/level progression,
-skill leveling, login streaks, and shop purchases.
-All methods operate on data fetched from the database
-and write results back through database methods.
+skill leveling, login streaks, shop purchases, and HP system.
 """
 
 from datetime import date, datetime
@@ -15,8 +13,13 @@ class GameEngine:
     """
     Manages all game mechanics for SukhaOS.
     Acts as the bridge between the UI (layout.py) and the database (database.py).
-    The UI calls engine methods, the engine processes logic, the database persists data.
     """
+
+    # HP gained per character level up
+    HP_PER_LEVEL = 10
+
+    # Extra max HP gained when Health skill levels up
+    HP_PER_HEALTH_LEVEL = 15
 
     def __init__(self, database):
         """
@@ -40,13 +43,11 @@ class GameEngine:
             task_id (int): The ID of the task being completed.
 
         Returns:
-            True if the task was successfully completed.
-            False if the task was already completed (no double rewards).
+            True if successfully completed, False if already completed.
         """
         task = self.db.get_task(task_id)
         player = self.db.get_player()
 
-        # Guard: prevent completing an already completed task
         if task["status"] == "Completed":
             return False
 
@@ -54,44 +55,54 @@ class GameEngine:
         player["gold"] += task["gold"]
         player["oxp"] += task["oxp"]
 
-        # --- Award skill XP for each linked skill ---
+        # --- Award skill XP ---
         rewards = self.db.get_task_rewards(task_id)
         for reward in rewards:
             skill = self.db.get_skill(reward["skill_name"])
             skill["xp"] += reward["sxp"]
+
+            # Check if Health skill leveled up — increase max HP
+            old_level = skill["level"]
             self.check_skill_level_up(skill)
+
+            if skill["name"] == "Health" and skill["level"] > old_level:
+                # Each Health level gained adds HP_PER_HEALTH_LEVEL to max HP
+                levels_gained = skill["level"] - old_level
+                player["max_hp"] += self.HP_PER_HEALTH_LEVEL * levels_gained
+                # Also heal the player by same amount — leveling Health feels rewarding
+                player["current_hp"] = min(
+                    player["current_hp"] + self.HP_PER_HEALTH_LEVEL * levels_gained,
+                    player["max_hp"]
+                )
+
             self.db.update_skill(skill)
 
-            # Achievement: Mind skill reaches level 5
             if skill["name"] == "Mind" and skill["level"] >= 5:
                 self.db.unlock_achievement("Mind Level 5")
 
         # --- Streak logic ---
         today = date.today()
         last_completed = task.get("last_completed")
-        new_streak = 1  # default: start or reset streak
+        new_streak = 1
 
         if last_completed:
             last_date = datetime.strptime(last_completed, "%Y-%m-%d").date()
 
             if task["period"] == "daily":
-                # Streak continues only if completed exactly yesterday
                 if (today - last_date).days == 1:
                     new_streak = task["streak"] + 1
                 else:
-                    new_streak = 1  # gap in days — reset
+                    new_streak = 1
 
             elif task["period"] == "weekly":
-                # Streak continues if completed in the previous calendar week
                 this_week = today.isocalendar()[1]
                 last_week = last_date.isocalendar()[1]
                 if this_week - last_week == 1:
                     new_streak = task["streak"] + 1
                 else:
-                    new_streak = task["streak"]  # weekly streaks don't reset on miss
+                    new_streak = task["streak"]
 
             else:
-                # Monthly/yearly tasks: preserve current streak
                 new_streak = task["streak"]
 
         # --- Streak milestone rewards ---
@@ -99,7 +110,6 @@ class GameEngine:
             self.db.unlock_achievement("7 Day Discipline")
 
         if new_streak % 7 == 0:
-            # Bonus OXP every 7-day streak milestone
             player["oxp"] += 50
             print(f"Streak bonus! +50 OXP for {new_streak}-day streak.")
 
@@ -116,8 +126,7 @@ class GameEngine:
         self.db.update_task_streak(task_id, new_streak)
         self.db.update_player(player)
 
-        # --- Log completion to task history ---
-        today_str = date.today().isoformat()
+        # --- Log to task history ---
         cursor = self.db.conn.cursor()
         cursor.execute("""
             INSERT INTO task_history(task_id, title, difficulty, date_completed)
@@ -126,7 +135,7 @@ class GameEngine:
             task["id"],
             task["title"],
             task.get("difficulty", "Medium"),
-            today_str
+            date.today().isoformat()
         ))
         self.db.conn.commit()
 
@@ -139,12 +148,10 @@ class GameEngine:
     def check_login_reward(self):
         """
         Check if the player is eligible for a daily login reward.
-        Called once on app launch. Gives gold and OXP with streak bonuses
-        for consecutive daily logins.
+        Also restores a small amount of HP on login — waking up heals you.
 
         Returns:
-            dict with keys: gold, oxp, streak, message — if reward was given.
-            None — if the player already logged in today.
+            dict with reward info, or None if already claimed today.
         """
         player = self.db.get_player()
         today = date.today()
@@ -153,7 +160,6 @@ class GameEngine:
         last_login = player.get("last_login")
         login_streak = player.get("login_streak", 0)
 
-        # Already claimed today's reward
         if last_login == today_str:
             return None
 
@@ -161,16 +167,12 @@ class GameEngine:
         if last_login:
             last_date = datetime.strptime(last_login, "%Y-%m-%d").date()
             diff = (today - last_date).days
-            if diff == 1:
-                login_streak += 1   # consecutive day — extend streak
-            else:
-                login_streak = 1    # missed a day — reset streak
+            login_streak = login_streak + 1 if diff == 1 else 1
         else:
-            login_streak = 1        # first ever login
+            login_streak = 1
 
-        # --- Determine reward based on streak ---
-        gold = 10
-        oxp = 10
+        # --- Determine reward ---
+        gold, oxp = 10, 10
 
         if login_streak >= 7:
             gold, oxp = 50, 50
@@ -181,6 +183,10 @@ class GameEngine:
         else:
             bonus_msg = f"Day {login_streak} streak. Keep it up!"
 
+        # --- Small HP regen on login (5 HP, capped at max) ---
+        hp_restored = min(5, player["max_hp"] - player["current_hp"])
+        player["current_hp"] += hp_restored
+
         # --- Apply rewards ---
         player["gold"] += gold
         player["oxp"] += oxp
@@ -189,10 +195,11 @@ class GameEngine:
         self.db.update_login(today_str, login_streak)
 
         return {
-            "gold": gold,
-            "oxp": oxp,
-            "streak": login_streak,
-            "message": bonus_msg
+            "gold":         gold,
+            "oxp":          oxp,
+            "streak":       login_streak,
+            "message":      bonus_msg,
+            "hp_restored":  hp_restored
         }
 
     # -------------------------------------------------------------------------
@@ -202,32 +209,40 @@ class GameEngine:
     def buy_skill_boost(self, skill_name):
         """
         Purchase a skill XP boost from the shop.
-        Deducts gold from the player and adds XP to the specified skill.
 
         Args:
             skill_name (str): The name of the skill to boost.
 
         Returns:
-            True if purchase was successful.
-            False if the player doesn't have enough gold.
+            True if successful, False if not enough gold.
         """
         player = self.db.get_player()
-        skill = self.db.get_skill(skill_name)
+        skill  = self.db.get_skill(skill_name)
 
-        COST = 100          # gold cost per boost
-        BOOST_AMOUNT = 20   # XP added per boost
+        COST         = 100
+        BOOST_AMOUNT = 20
 
         if player["gold"] < COST:
             return False
 
         player["gold"] -= COST
-        skill["xp"] += BOOST_AMOUNT
+        skill["xp"]    += BOOST_AMOUNT
 
+        old_level = skill["level"]
         self.check_skill_level_up(skill)
+
+        # If Health skill leveled up via shop boost, increase max HP too
+        if skill["name"] == "Health" and skill["level"] > old_level:
+            levels_gained = skill["level"] - old_level
+            player["max_hp"]     += self.HP_PER_HEALTH_LEVEL * levels_gained
+            player["current_hp"]  = min(
+                player["current_hp"] + self.HP_PER_HEALTH_LEVEL * levels_gained,
+                player["max_hp"]
+            )
+
         self.db.update_skill(skill)
         self.db.update_player(player)
         self.db.commit()
-
         return True
 
     # -------------------------------------------------------------------------
@@ -237,39 +252,44 @@ class GameEngine:
     def check_player_level_up(self, player):
         """
         Check if the player has enough OXP to level up.
-        Loops until OXP is below the threshold for the next level.
-        Modifies the player dict in place — caller must save with db.update_player().
+        Each level up also increases max HP by HP_PER_LEVEL
+        and fully restores HP as a reward.
 
         Formula: required OXP = 100 + (level - 1) * 50
 
         Args:
-            player (dict): The player data dictionary with 'oxp' and 'level' keys.
+            player (dict): Player data dict. Modified in place.
         """
         while True:
             required = 100 + (player["level"] - 1) * 50
             if player["oxp"] >= required:
-                player["oxp"] -= required   # carry over excess OXP
-                player["level"] += 1
-                print(f"Level up! New level: {player['level']}, OXP remaining: {player['oxp']}")
+                player["oxp"]    -= required
+                player["level"]  += 1
+
+                # Increase max HP on level up
+                player["max_hp"]     += self.HP_PER_LEVEL
+                # Fully restore HP on level up — feels like a proper RPG reward
+                player["current_hp"]  = player["max_hp"]
+
+                print(f"Level up! Level: {player['level']}, Max HP: {player['max_hp']}")
             else:
-                break   # not enough OXP for next level
+                break
 
     def check_skill_level_up(self, skill):
         """
         Check if a skill has enough XP to level up.
-        Loops until XP is below the threshold for the next skill level.
-        Modifies the skill dict in place — caller must save with db.update_skill().
+        Modifies the skill dict in place.
 
         Formula: required SXP = 50 + (level - 1) * 25
 
         Args:
-            skill (dict): The skill data dictionary with 'xp' and 'level' keys.
+            skill (dict): Skill data dict. Modified in place.
         """
         while True:
             required = 50 + (skill["level"] - 1) * 25
             if skill["xp"] >= required:
-                skill["xp"] -= required     # carry over excess XP
+                skill["xp"]    -= required
                 skill["level"] += 1
-                print(f"Skill '{skill['name']}' leveled up! Level: {skill['level']}, XP remaining: {skill['xp']}")
+                print(f"Skill '{skill['name']}' leveled up! Level: {skill['level']}")
             else:
-                break   # not enough XP for next level
+                break
