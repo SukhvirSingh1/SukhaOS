@@ -75,7 +75,26 @@ class Database:
             )
         ''')
 
-        # --- Safely add new columns to existing databases ---
+        # Boss table — one row per boss encounter
+        # defeated: 0=active/pending, 1=defeated
+        # spawned: 0=not yet spawned, 1=currently active
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS boss (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT,
+                tier TEXT,
+                hp INTEGER,
+                max_hp INTEGER,
+                attack_damage INTEGER,
+                level_trigger INTEGER,
+                defeated INTEGER DEFAULT 0,
+                spawned INTEGER DEFAULT 0,
+                date_spawned TEXT,
+                taunt TEXT
+            )
+        ''')
+
+        # --- Safely add new columns ---
         new_columns = [
             "ALTER TABLE player ADD COLUMN last_login TEXT",
             "ALTER TABLE player ADD COLUMN login_streak INTEGER DEFAULT 0",
@@ -83,14 +102,13 @@ class Database:
             "ALTER TABLE player ADD COLUMN current_hp INTEGER DEFAULT 100",
             "ALTER TABLE player ADD COLUMN max_hp INTEGER DEFAULT 100",
             "ALTER TABLE player ADD COLUMN attack_points INTEGER DEFAULT 0",
-            # is_core: 1 = core skill (locked, cannot be deleted), 0 = custom skill
             "ALTER TABLE skill ADD COLUMN is_core INTEGER DEFAULT 0",
         ]
         for sql in new_columns:
             try:
                 cursor.execute(sql)
             except:
-                pass  # column already exists — skip
+                pass
 
         # --- Seed default player ---
         cursor.execute("SELECT COUNT(*) FROM player")
@@ -101,32 +119,27 @@ class Database:
             """)
 
         # --- Seed default skills ---
-        # Core skills are locked — they power game mechanics and cannot be deleted
-        # Health → max HP, Strength → attack damage, Mind → Mind Level 5 achievement
-        CORE_SKILLS   = {"Mind", "Health", "Strength"}
+        CORE_SKILLS    = {"Mind", "Health", "Strength"}
         default_skills = ["Mind", "Health", "Strength", "IQ", "Programming", "Editing"]
-
         for skill in default_skills:
             is_core = 1 if skill in CORE_SKILLS else 0
             cursor.execute(
                 "INSERT OR IGNORE INTO skill (name, xp, level, is_core) VALUES (?, 0, 1, ?)",
                 (skill, is_core)
             )
-
-        # --- Mark existing core skills as core in case they were seeded before is_core existed ---
         for skill in CORE_SKILLS:
-            cursor.execute(
-                "UPDATE skill SET is_core=1 WHERE name=?", (skill,)
-            )
+            cursor.execute("UPDATE skill SET is_core=1 WHERE name=?", (skill,))
 
         # --- Seed default achievements ---
         cursor.execute("SELECT COUNT(*) FROM achievement")
         if cursor.fetchone()[0] == 0:
             for title, desc in [
-                ("First Task",       "Complete your first task"),
-                ("7 Day Discipline", "Reach a 7-day streak on a daily task"),
-                ("Gold Collector",   "Earn 500 total gold"),
-                ("Mind Level 5",     "Reach Mind skill level 5"),
+                ("First Task",        "Complete your first task"),
+                ("7 Day Discipline",  "Reach a 7-day streak on a daily task"),
+                ("Gold Collector",    "Earn 500 total gold"),
+                ("Mind Level 5",      "Reach Mind skill level 5"),
+                ("Boss Slayer",       "Defeat your first boss"),
+                ("Giant Killer",      "Defeat a Hard boss"),
             ]:
                 cursor.execute(
                     "INSERT INTO achievement(title, description) VALUES (?, ?)", (title, desc)
@@ -139,11 +152,10 @@ class Database:
     # -------------------------------------------------------------------------
 
     def get_player(self):
-        """Fetch the player record. Returns dict with all fields."""
+        """Fetch the player record."""
         cursor = self.conn.cursor()
         cursor.execute("SELECT * FROM player LIMIT 1")
         row = cursor.fetchone()
-
         if row is None:
             cursor.execute("""
                 INSERT INTO player (id, oxp, level, gold, current_hp, max_hp, attack_points)
@@ -152,46 +164,39 @@ class Database:
             self.conn.commit()
             cursor.execute("SELECT * FROM player LIMIT 1")
             row = cursor.fetchone()
-
         return {
-            "id":             row[0],
-            "oxp":            row[1],
-            "level":          row[2],
-            "gold":           row[3],
-            "last_login":     row[4] if len(row) > 4 else None,
-            "login_streak":   row[5] if len(row) > 5 else 0,
-            "name":           row[6] if len(row) > 6 else "Hero",
-            "current_hp":     row[7] if len(row) > 7 else 100,
-            "max_hp":         row[8] if len(row) > 8 else 100,
-            "attack_points":  row[9] if len(row) > 9 else 0,
+            "id":            row[0],
+            "oxp":           row[1],
+            "level":         row[2],
+            "gold":          row[3],
+            "last_login":    row[4] if len(row) > 4 else None,
+            "login_streak":  row[5] if len(row) > 5 else 0,
+            "name":          row[6] if len(row) > 6 else "Hero",
+            "current_hp":    row[7] if len(row) > 7 else 100,
+            "max_hp":        row[8] if len(row) > 8 else 100,
+            "attack_points": row[9] if len(row) > 9 else 0,
         }
 
     def update_player(self, player):
-        """Save all player fields back to the database."""
+        """Save all player fields."""
         cursor = self.conn.cursor()
         cursor.execute("""
             UPDATE player
             SET oxp=?, level=?, gold=?, current_hp=?, max_hp=?, attack_points=?
             WHERE id=?
         """, (
-            player["oxp"],
-            player["level"],
-            player["gold"],
-            player["current_hp"],
-            player["max_hp"],
-            player["attack_points"],
-            player["id"]
+            player["oxp"], player["level"], player["gold"],
+            player["current_hp"], player["max_hp"],
+            player["attack_points"], player["id"]
         ))
         self.conn.commit()
 
     def set_player_name(self, name):
-        """Set the player's character name (called once on first launch)."""
         cursor = self.conn.cursor()
         cursor.execute("UPDATE player SET name=? WHERE id=1", (name,))
         self.conn.commit()
 
     def update_hp(self, current_hp, max_hp):
-        """Directly update HP values."""
         cursor = self.conn.cursor()
         cursor.execute(
             "UPDATE player SET current_hp=?, max_hp=? WHERE id=1",
@@ -200,7 +205,6 @@ class Database:
         self.conn.commit()
 
     def update_login(self, last_login, login_streak):
-        """Update last login date and streak."""
         cursor = self.conn.cursor()
         cursor.execute(
             "UPDATE player SET last_login=?, login_streak=? WHERE id=1",
@@ -209,11 +213,96 @@ class Database:
         self.conn.commit()
 
     # -------------------------------------------------------------------------
+    # BOSS
+    # -------------------------------------------------------------------------
+
+    def get_active_boss(self):
+        """
+        Fetch the current active (spawned but not defeated) boss.
+
+        Returns:
+            dict with boss data, or None if no active boss.
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT id, name, tier, hp, max_hp, attack_damage,
+                   level_trigger, defeated, spawned, date_spawned, taunt
+            FROM boss
+            WHERE spawned=1 AND defeated=0
+            LIMIT 1
+        """)
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return {
+            "id":            row[0],
+            "name":          row[1],
+            "tier":          row[2],
+            "hp":            row[3],
+            "max_hp":        row[4],
+            "attack_damage": row[5],
+            "level_trigger": row[6],
+            "defeated":      row[7],
+            "spawned":       row[8],
+            "date_spawned":  row[9],
+            "taunt":         row[10],
+        }
+
+    def spawn_boss(self, name, tier, hp, attack_damage, level_trigger, taunt):
+        """
+        Insert and activate a new boss encounter.
+
+        Args:
+            name (str): Boss name.
+            tier (str): 'easy', 'medium', or 'hard'.
+            hp (int): Starting and max HP.
+            attack_damage (int): Damage dealt to player per day undefeated.
+            level_trigger (int): Player level that triggered this boss.
+            taunt (str): Taunt message shown on the boss fight screen.
+        """
+        from datetime import date
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            INSERT INTO boss (name, tier, hp, max_hp, attack_damage,
+                              level_trigger, defeated, spawned, date_spawned, taunt)
+            VALUES (?, ?, ?, ?, ?, ?, 0, 1, ?, ?)
+        """, (name, tier, hp, hp, attack_damage, level_trigger,
+              date.today().isoformat(), taunt))
+        self.conn.commit()
+
+    def update_boss_hp(self, boss_id, hp):
+        """Update boss current HP after player attacks."""
+        cursor = self.conn.cursor()
+        cursor.execute("UPDATE boss SET hp=? WHERE id=?", (hp, boss_id))
+        self.conn.commit()
+
+    def defeat_boss(self, boss_id):
+        """Mark a boss as defeated."""
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "UPDATE boss SET defeated=1, spawned=0 WHERE id=?", (boss_id,)
+        )
+        self.conn.commit()
+
+    def boss_already_spawned_for_level(self, level_trigger):
+        """
+        Check if a boss has already been spawned for a given level trigger.
+        Prevents duplicate boss spawns on the same level.
+
+        Returns:
+            True if already spawned, False if not.
+        """
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) FROM boss WHERE level_trigger=?", (level_trigger,)
+        )
+        return cursor.fetchone()[0] > 0
+
+    # -------------------------------------------------------------------------
     # TASKS
     # -------------------------------------------------------------------------
 
     def get_task(self, task_id):
-        """Fetch a single task by ID. Returns dict or None."""
         cursor = self.conn.cursor()
         cursor.execute("""
             SELECT id, title, description, period, oxp, gold,
@@ -231,7 +320,6 @@ class Database:
         }
 
     def get_tasks_by_period(self, period):
-        """Fetch all tasks for a given period."""
         cursor = self.conn.cursor()
         cursor.execute("""
             SELECT id, title, description, status, streak, difficulty
@@ -243,7 +331,6 @@ class Database:
         } for r in cursor.fetchall()]
 
     def add_task(self, title, description, period, difficulty, oxp, gold):
-        """Insert a new task. Returns new task ID."""
         cursor = self.conn.cursor()
         cursor.execute("""
             INSERT INTO task(title, description, period, difficulty, oxp, gold, status)
@@ -253,22 +340,20 @@ class Database:
         return cursor.lastrowid
 
     def update_task(self, task_id, title, description, period):
-        """Update task title, description, period."""
         cursor = self.conn.cursor()
-        cursor.execute("""
-            UPDATE task SET title=?, description=?, period=? WHERE id=?
-        """, (title, description, period, task_id))
+        cursor.execute(
+            "UPDATE task SET title=?, description=?, period=? WHERE id=?",
+            (title, description, period, task_id)
+        )
         self.conn.commit()
 
     def delete_task(self, task_id):
-        """Delete a task and its rewards."""
         cursor = self.conn.cursor()
         cursor.execute("DELETE FROM task_reward WHERE task_id=?", (task_id,))
         cursor.execute("DELETE FROM task WHERE id=?", (task_id,))
         self.conn.commit()
 
     def mark_task_completed(self, task_id):
-        """Mark task as completed with today's date."""
         from datetime import date
         cursor = self.conn.cursor()
         cursor.execute(
@@ -278,7 +363,6 @@ class Database:
         self.conn.commit()
 
     def update_task_streak(self, task_id, streak):
-        """Update task streak count."""
         cursor = self.conn.cursor()
         cursor.execute("UPDATE task SET streak=? WHERE id=?", (streak, task_id))
         self.conn.commit()
@@ -289,7 +373,6 @@ class Database:
         today = date.today()
         cursor = self.conn.cursor()
         cursor.execute("SELECT id, period, last_completed FROM task")
-
         for task_id, period, last_completed in cursor.fetchall():
             if not last_completed:
                 continue
@@ -306,7 +389,6 @@ class Database:
                 reset = last_date.year != today.year
             if reset:
                 cursor.execute("UPDATE task SET status='Pending' WHERE id=?", (task_id,))
-
         self.conn.commit()
 
     # -------------------------------------------------------------------------
@@ -314,7 +396,6 @@ class Database:
     # -------------------------------------------------------------------------
 
     def get_task_rewards(self, task_id):
-        """Fetch all skill rewards linked to a task."""
         cursor = self.conn.cursor()
         cursor.execute(
             "SELECT skill_name, sxp FROM task_reward WHERE task_id=?", (task_id,)
@@ -322,7 +403,6 @@ class Database:
         return [{"skill_name": r[0], "sxp": r[1]} for r in cursor.fetchall()]
 
     def add_task_reward(self, task_id, skill_name, sxp):
-        """Link a skill reward to a task."""
         cursor = self.conn.cursor()
         cursor.execute(
             "INSERT INTO task_reward(task_id, skill_name, sxp) VALUES(?, ?, ?)",
@@ -335,23 +415,12 @@ class Database:
     # -------------------------------------------------------------------------
 
     def get_all_skills(self):
-        """
-        Fetch all skills including is_core flag.
-
-        Returns:
-            list of dicts with keys: name, xp, level, is_core.
-        """
         cursor = self.conn.cursor()
         cursor.execute("SELECT name, xp, level, is_core FROM skill")
-        return [{
-            "name":    r[0],
-            "xp":      r[1],
-            "level":   r[2],
-            "is_core": r[3]
-        } for r in cursor.fetchall()]
+        return [{"name": r[0], "xp": r[1], "level": r[2], "is_core": r[3]}
+                for r in cursor.fetchall()]
 
     def get_skill(self, skill_name):
-        """Fetch a skill by name. Creates it if not found."""
         cursor = self.conn.cursor()
         cursor.execute("SELECT * FROM skill WHERE name=?", (skill_name,))
         row = cursor.fetchone()
@@ -368,7 +437,6 @@ class Database:
         }
 
     def update_skill(self, skill):
-        """Save updated skill XP and level."""
         cursor = self.conn.cursor()
         cursor.execute(
             "UPDATE skill SET xp=?, level=? WHERE name=?",
@@ -377,10 +445,6 @@ class Database:
         self.conn.commit()
 
     def add_skill(self, skill_name):
-        """
-        Add a new custom skill. Returns False if duplicate.
-        Custom skills always have is_core=0 so they can be deleted.
-        """
         cursor = self.conn.cursor()
         cursor.execute("SELECT name FROM skill WHERE name=?", (skill_name,))
         if cursor.fetchone():
@@ -393,19 +457,11 @@ class Database:
         return True
 
     def delete_skill(self, skill_name):
-        """
-        Delete a non-core skill.
-        Core skills (is_core=1) are protected and cannot be deleted.
-
-        Returns:
-            True if deleted, False if skill is core-protected.
-        """
         cursor = self.conn.cursor()
-        # Double-check in database — never delete a core skill
         cursor.execute("SELECT is_core FROM skill WHERE name=?", (skill_name,))
         row = cursor.fetchone()
         if row and row[0] == 1:
-            return False  # protected — should never reach here via UI
+            return False
         cursor.execute("DELETE FROM skill WHERE name=?", (skill_name,))
         self.conn.commit()
         return True
@@ -415,13 +471,11 @@ class Database:
     # -------------------------------------------------------------------------
 
     def unlock_achievement(self, title):
-        """Mark an achievement as unlocked."""
         cursor = self.conn.cursor()
         cursor.execute("UPDATE achievement SET unlocked=1 WHERE title=?", (title,))
         self.conn.commit()
 
     def get_achievement(self):
-        """Fetch all achievements."""
         cursor = self.conn.cursor()
         cursor.execute("SELECT title, description, unlocked FROM achievement")
         return [{"title": r[0], "description": r[1], "unlocked": r[2]}
@@ -432,7 +486,6 @@ class Database:
     # -------------------------------------------------------------------------
 
     def get_task_history(self):
-        """Fetch all task history entries, newest first."""
         cursor = self.conn.cursor()
         cursor.execute("""
             SELECT title, difficulty, date_completed
@@ -445,5 +498,4 @@ class Database:
     # -------------------------------------------------------------------------
 
     def commit(self):
-        """Manually commit pending transactions."""
         self.conn.commit()
