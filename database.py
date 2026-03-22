@@ -60,8 +60,9 @@ class Database:
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS achievement (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT,
+                title TEXT UNIQUE,
                 description TEXT,
+                category TEXT DEFAULT "general",
                 unlocked INTEGER DEFAULT 0
             )
         ''')
@@ -74,10 +75,6 @@ class Database:
                 date_completed TEXT
             )
         ''')
-
-        # Boss table — one row per boss encounter
-        # defeated: 0=active/pending, 1=defeated
-        # spawned: 0=not yet spawned, 1=currently active
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS boss (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -102,7 +99,11 @@ class Database:
             "ALTER TABLE player ADD COLUMN current_hp INTEGER DEFAULT 100",
             "ALTER TABLE player ADD COLUMN max_hp INTEGER DEFAULT 100",
             "ALTER TABLE player ADD COLUMN attack_points INTEGER DEFAULT 0",
+            "ALTER TABLE player ADD COLUMN total_gold_earned INTEGER DEFAULT 0",
+            "ALTER TABLE player ADD COLUMN gold_spent INTEGER DEFAULT 0",
+            "ALTER TABLE player ADD COLUMN bosses_defeated INTEGER DEFAULT 0",
             "ALTER TABLE skill ADD COLUMN is_core INTEGER DEFAULT 0",
+            "ALTER TABLE achievement ADD COLUMN category TEXT DEFAULT 'general'",
         ]
         for sql in new_columns:
             try:
@@ -130,20 +131,54 @@ class Database:
         for skill in CORE_SKILLS:
             cursor.execute("UPDATE skill SET is_core=1 WHERE name=?", (skill,))
 
-        # --- Seed default achievements ---
-        cursor.execute("SELECT COUNT(*) FROM achievement")
-        if cursor.fetchone()[0] == 0:
-            for title, desc in [
-                ("First Task",        "Complete your first task"),
-                ("7 Day Discipline",  "Reach a 7-day streak on a daily task"),
-                ("Gold Collector",    "Earn 500 total gold"),
-                ("Mind Level 5",      "Reach Mind skill level 5"),
-                ("Boss Slayer",       "Defeat your first boss"),
-                ("Giant Killer",      "Defeat a Hard boss"),
-            ]:
-                cursor.execute(
-                    "INSERT INTO achievement(title, description) VALUES (?, ?)", (title, desc)
-                )
+        # --- Seed all 24 achievements ---
+        # Uses INSERT OR IGNORE so existing ones are never overwritten
+        all_achievements = [
+            # Tasks
+            ("First Task",          "Complete your first task",                    "tasks"),
+            ("Getting Started",     "Complete 10 tasks total",                     "tasks"),
+            ("Halfway There",       "Complete 50 tasks total",                     "tasks"),
+            ("Century",             "Complete 100 tasks total",                    "tasks"),
+            ("Hard Worker",         "Complete a Hard difficulty task",              "tasks"),
+            ("Triple Threat",       "Complete 3 tasks in a single day",            "tasks"),
+            # Streaks
+            ("Consistent",          "Reach a 3-day login streak",                  "streaks"),
+            ("7 Day Discipline",    "Reach a 7-day streak on a daily task",        "streaks"),
+            ("Two Weeks Strong",    "Reach a 14-day streak on a daily task",       "streaks"),
+            ("Dedicated",           "Reach a 30-day login streak",                 "streaks"),
+            # Levels
+            ("Rising",              "Reach character level 5",                     "levels"),
+            ("Veteran",             "Reach character level 10",                    "levels"),
+            ("Elite",               "Reach character level 25",                    "levels"),
+            # Gold
+            ("Gold Collector",      "Earn 500 total gold",                         "gold"),
+            ("Rich",                "Earn 1000 total gold",                        "gold"),
+            ("Big Spender",         "Spend 500 gold in the shop",                  "gold"),
+            # Skills
+            ("Mind Level 5",        "Reach Mind skill level 5",                    "skills"),
+            ("Master",              "Max any skill to level 10",                   "skills"),
+            ("Well Rounded",        "Have 3 skills at level 5 or higher",          "skills"),
+            ("Creator",             "Add a custom skill",                          "skills"),
+            # Bosses
+            ("Boss Slayer",         "Defeat your first boss",                      "bosses"),
+            ("Giant Killer",        "Defeat a Hard boss",                          "bosses"),
+            ("Boss Hunter",         "Defeat 3 bosses total",                       "bosses"),
+            ("Near Death",          "Survive a boss fight at 1 HP",                "bosses"),
+        ]
+
+        for title, desc, category in all_achievements:
+            cursor.execute("""
+                INSERT OR IGNORE INTO achievement(title, description, category)
+                VALUES (?, ?, ?)
+            """, (title, desc, category))
+
+        # Update category for any existing achievements that were seeded without it
+        cursor.execute("UPDATE achievement SET category='tasks'   WHERE title IN ('First Task','Getting Started','Halfway There','Century','Hard Worker','Triple Threat')")
+        cursor.execute("UPDATE achievement SET category='streaks' WHERE title IN ('Consistent','7 Day Discipline','Two Weeks Strong','Dedicated')")
+        cursor.execute("UPDATE achievement SET category='levels'  WHERE title IN ('Rising','Veteran','Elite')")
+        cursor.execute("UPDATE achievement SET category='gold'    WHERE title IN ('Gold Collector','Rich','Big Spender')")
+        cursor.execute("UPDATE achievement SET category='skills'  WHERE title IN ('Mind Level 5','Master','Well Rounded','Creator')")
+        cursor.execute("UPDATE achievement SET category='bosses'  WHERE title IN ('Boss Slayer','Giant Killer','Boss Hunter','Near Death')")
 
         self.conn.commit()
 
@@ -164,17 +199,21 @@ class Database:
             self.conn.commit()
             cursor.execute("SELECT * FROM player LIMIT 1")
             row = cursor.fetchone()
+
         return {
-            "id":            row[0],
-            "oxp":           row[1],
-            "level":         row[2],
-            "gold":          row[3],
-            "last_login":    row[4] if len(row) > 4 else None,
-            "login_streak":  row[5] if len(row) > 5 else 0,
-            "name":          row[6] if len(row) > 6 else "Hero",
-            "current_hp":    row[7] if len(row) > 7 else 100,
-            "max_hp":        row[8] if len(row) > 8 else 100,
-            "attack_points": row[9] if len(row) > 9 else 0,
+            "id":                row[0],
+            "oxp":               row[1],
+            "level":             row[2],
+            "gold":              row[3],
+            "last_login":        row[4]  if len(row) > 4  else None,
+            "login_streak":      row[5]  if len(row) > 5  else 0,
+            "name":              row[6]  if len(row) > 6  else "Hero",
+            "current_hp":        row[7]  if len(row) > 7  else 100,
+            "max_hp":            row[8]  if len(row) > 8  else 100,
+            "attack_points":     row[9]  if len(row) > 9  else 0,
+            "total_gold_earned": row[10] if len(row) > 10 else 0,
+            "gold_spent":        row[11] if len(row) > 11 else 0,
+            "bosses_defeated":   row[12] if len(row) > 12 else 0,
         }
 
     def update_player(self, player):
@@ -182,12 +221,16 @@ class Database:
         cursor = self.conn.cursor()
         cursor.execute("""
             UPDATE player
-            SET oxp=?, level=?, gold=?, current_hp=?, max_hp=?, attack_points=?
+            SET oxp=?, level=?, gold=?, current_hp=?, max_hp=?,
+                attack_points=?, total_gold_earned=?, gold_spent=?, bosses_defeated=?
             WHERE id=?
         """, (
             player["oxp"], player["level"], player["gold"],
-            player["current_hp"], player["max_hp"],
-            player["attack_points"], player["id"]
+            player["current_hp"], player["max_hp"], player["attack_points"],
+            player.get("total_gold_earned", 0),
+            player.get("gold_spent", 0),
+            player.get("bosses_defeated", 0),
+            player["id"]
         ))
         self.conn.commit()
 
@@ -217,49 +260,23 @@ class Database:
     # -------------------------------------------------------------------------
 
     def get_active_boss(self):
-        """
-        Fetch the current active (spawned but not defeated) boss.
-
-        Returns:
-            dict with boss data, or None if no active boss.
-        """
         cursor = self.conn.cursor()
         cursor.execute("""
             SELECT id, name, tier, hp, max_hp, attack_damage,
                    level_trigger, defeated, spawned, date_spawned, taunt
-            FROM boss
-            WHERE spawned=1 AND defeated=0
-            LIMIT 1
+            FROM boss WHERE spawned=1 AND defeated=0 LIMIT 1
         """)
         row = cursor.fetchone()
         if row is None:
             return None
         return {
-            "id":            row[0],
-            "name":          row[1],
-            "tier":          row[2],
-            "hp":            row[3],
-            "max_hp":        row[4],
-            "attack_damage": row[5],
-            "level_trigger": row[6],
-            "defeated":      row[7],
-            "spawned":       row[8],
-            "date_spawned":  row[9],
-            "taunt":         row[10],
+            "id": row[0], "name": row[1], "tier": row[2],
+            "hp": row[3], "max_hp": row[4], "attack_damage": row[5],
+            "level_trigger": row[6], "defeated": row[7],
+            "spawned": row[8], "date_spawned": row[9], "taunt": row[10],
         }
 
     def spawn_boss(self, name, tier, hp, attack_damage, level_trigger, taunt):
-        """
-        Insert and activate a new boss encounter.
-
-        Args:
-            name (str): Boss name.
-            tier (str): 'easy', 'medium', or 'hard'.
-            hp (int): Starting and max HP.
-            attack_damage (int): Damage dealt to player per day undefeated.
-            level_trigger (int): Player level that triggered this boss.
-            taunt (str): Taunt message shown on the boss fight screen.
-        """
         from datetime import date
         cursor = self.conn.cursor()
         cursor.execute("""
@@ -271,13 +288,11 @@ class Database:
         self.conn.commit()
 
     def update_boss_hp(self, boss_id, hp):
-        """Update boss current HP after player attacks."""
         cursor = self.conn.cursor()
         cursor.execute("UPDATE boss SET hp=? WHERE id=?", (hp, boss_id))
         self.conn.commit()
 
     def defeat_boss(self, boss_id):
-        """Mark a boss as defeated."""
         cursor = self.conn.cursor()
         cursor.execute(
             "UPDATE boss SET defeated=1, spawned=0 WHERE id=?", (boss_id,)
@@ -285,18 +300,17 @@ class Database:
         self.conn.commit()
 
     def boss_already_spawned_for_level(self, level_trigger):
-        """
-        Check if a boss has already been spawned for a given level trigger.
-        Prevents duplicate boss spawns on the same level.
-
-        Returns:
-            True if already spawned, False if not.
-        """
         cursor = self.conn.cursor()
         cursor.execute(
             "SELECT COUNT(*) FROM boss WHERE level_trigger=?", (level_trigger,)
         )
         return cursor.fetchone()[0] > 0
+
+    def get_bosses_defeated_count(self):
+        """Return total number of bosses defeated."""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM boss WHERE defeated=1")
+        return cursor.fetchone()[0]
 
     # -------------------------------------------------------------------------
     # TASKS
@@ -368,7 +382,6 @@ class Database:
         self.conn.commit()
 
     def reset_tasks(self):
-        """Reset expired tasks to Pending on app startup."""
         from datetime import date, datetime
         today = date.today()
         cursor = self.conn.cursor()
@@ -390,6 +403,29 @@ class Database:
             if reset:
                 cursor.execute("UPDATE task SET status='Pending' WHERE id=?", (task_id,))
         self.conn.commit()
+
+    def get_total_tasks_completed(self):
+        """Return total number of tasks ever completed (from history)."""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM task_history")
+        return cursor.fetchone()[0]
+
+    def get_tasks_completed_today(self):
+        """Return number of tasks completed today."""
+        from datetime import date
+        today = date.today().isoformat()
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) FROM task_history WHERE date_completed=?", (today,)
+        )
+        return cursor.fetchone()[0]
+
+    def get_max_task_streak(self):
+        """Return the highest streak value across all tasks."""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT MAX(streak) FROM task")
+        result = cursor.fetchone()[0]
+        return result or 0
 
     # -------------------------------------------------------------------------
     # TASK REWARDS
@@ -466,20 +502,60 @@ class Database:
         self.conn.commit()
         return True
 
+    def get_skills_above_level(self, min_level):
+        """Return count of skills at or above a given level."""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM skill WHERE level >= ?", (min_level,))
+        return cursor.fetchone()[0]
+
+    def get_max_skill_level(self):
+        """Return the highest level any skill has reached."""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT MAX(level) FROM skill")
+        result = cursor.fetchone()[0]
+        return result or 0
+
+    def get_custom_skill_count(self):
+        """Return number of custom (non-core) skills."""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM skill WHERE is_core=0")
+        return cursor.fetchone()[0]
+
     # -------------------------------------------------------------------------
     # ACHIEVEMENTS
     # -------------------------------------------------------------------------
 
     def unlock_achievement(self, title):
+        """Mark an achievement as unlocked. Safe to call multiple times."""
         cursor = self.conn.cursor()
-        cursor.execute("UPDATE achievement SET unlocked=1 WHERE title=?", (title,))
+        cursor.execute(
+            "UPDATE achievement SET unlocked=1 WHERE title=?", (title,)
+        )
         self.conn.commit()
 
     def get_achievement(self):
+        """Fetch all achievements ordered by category."""
         cursor = self.conn.cursor()
-        cursor.execute("SELECT title, description, unlocked FROM achievement")
-        return [{"title": r[0], "description": r[1], "unlocked": r[2]}
-                for r in cursor.fetchall()]
+        cursor.execute("""
+            SELECT title, description, unlocked, category
+            FROM achievement
+            ORDER BY category, unlocked DESC, title
+        """)
+        return [{
+            "title":       r[0],
+            "description": r[1],
+            "unlocked":    r[2],
+            "category":    r[3]
+        } for r in cursor.fetchall()]
+
+    def get_achievement_count(self):
+        """Return (unlocked, total) achievement counts."""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM achievement WHERE unlocked=1")
+        unlocked = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM achievement")
+        total = cursor.fetchone()[0]
+        return unlocked, total
 
     # -------------------------------------------------------------------------
     # TASK HISTORY
