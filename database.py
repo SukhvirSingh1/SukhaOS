@@ -57,6 +57,8 @@ class Database:
                 sxp INTEGER DEFAULT 0
             )
         ''')
+
+        # Achievement table — title is UNIQUE to prevent duplicates
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS achievement (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,6 +68,7 @@ class Database:
                 unlocked INTEGER DEFAULT 0
             )
         ''')
+
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS task_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -91,7 +94,7 @@ class Database:
             )
         ''')
 
-        # --- Safely add new columns ---
+        # --- Safely add new columns to existing databases ---
         new_columns = [
             "ALTER TABLE player ADD COLUMN last_login TEXT",
             "ALTER TABLE player ADD COLUMN login_streak INTEGER DEFAULT 0",
@@ -132,38 +135,40 @@ class Database:
             cursor.execute("UPDATE skill SET is_core=1 WHERE name=?", (skill,))
 
         # --- Seed all 24 achievements ---
-        # Uses INSERT OR IGNORE so existing ones are never overwritten
+        # INSERT OR IGNORE means if title already exists it is skipped entirely
+        # This is the ONLY place achievements are inserted — no UPDATE statements
+        # that could cause issues
         all_achievements = [
             # Tasks
-            ("First Task",          "Complete your first task",                    "tasks"),
-            ("Getting Started",     "Complete 10 tasks total",                     "tasks"),
-            ("Halfway There",       "Complete 50 tasks total",                     "tasks"),
-            ("Century",             "Complete 100 tasks total",                    "tasks"),
-            ("Hard Worker",         "Complete a Hard difficulty task",              "tasks"),
-            ("Triple Threat",       "Complete 3 tasks in a single day",            "tasks"),
+            ("First Task",       "Complete your first task",             "tasks"),
+            ("Getting Started",  "Complete 10 tasks total",              "tasks"),
+            ("Halfway There",    "Complete 50 tasks total",              "tasks"),
+            ("Century",          "Complete 100 tasks total",             "tasks"),
+            ("Hard Worker",      "Complete a Hard difficulty task",       "tasks"),
+            ("Triple Threat",    "Complete 3 tasks in a single day",     "tasks"),
             # Streaks
-            ("Consistent",          "Reach a 3-day login streak",                  "streaks"),
-            ("7 Day Discipline",    "Reach a 7-day streak on a daily task",        "streaks"),
-            ("Two Weeks Strong",    "Reach a 14-day streak on a daily task",       "streaks"),
-            ("Dedicated",           "Reach a 30-day login streak",                 "streaks"),
+            ("Consistent",       "Reach a 3-day login streak",           "streaks"),
+            ("7 Day Discipline", "Reach a 7-day streak on a daily task", "streaks"),
+            ("Two Weeks Strong", "Reach a 14-day streak on a daily task","streaks"),
+            ("Dedicated",        "Reach a 30-day login streak",          "streaks"),
             # Levels
-            ("Rising",              "Reach character level 5",                     "levels"),
-            ("Veteran",             "Reach character level 10",                    "levels"),
-            ("Elite",               "Reach character level 25",                    "levels"),
+            ("Rising",           "Reach character level 5",              "levels"),
+            ("Veteran",          "Reach character level 10",             "levels"),
+            ("Elite",            "Reach character level 25",             "levels"),
             # Gold
-            ("Gold Collector",      "Earn 500 total gold",                         "gold"),
-            ("Rich",                "Earn 1000 total gold",                        "gold"),
-            ("Big Spender",         "Spend 500 gold in the shop",                  "gold"),
+            ("Gold Collector",   "Earn 500 total gold",                  "gold"),
+            ("Rich",             "Earn 1000 total gold",                 "gold"),
+            ("Big Spender",      "Spend 500 gold in the shop",           "gold"),
             # Skills
-            ("Mind Level 5",        "Reach Mind skill level 5",                    "skills"),
-            ("Master",              "Max any skill to level 10",                   "skills"),
-            ("Well Rounded",        "Have 3 skills at level 5 or higher",          "skills"),
-            ("Creator",             "Add a custom skill",                          "skills"),
+            ("Mind Level 5",     "Reach Mind skill level 5",             "skills"),
+            ("Master",           "Max any skill to level 10",            "skills"),
+            ("Well Rounded",     "Have 3 skills at level 5 or higher",   "skills"),
+            ("Creator",          "Add a custom skill",                   "skills"),
             # Bosses
-            ("Boss Slayer",         "Defeat your first boss",                      "bosses"),
-            ("Giant Killer",        "Defeat a Hard boss",                          "bosses"),
-            ("Boss Hunter",         "Defeat 3 bosses total",                       "bosses"),
-            ("Near Death",          "Survive a boss fight at 1 HP",                "bosses"),
+            ("Boss Slayer",      "Defeat your first boss",               "bosses"),
+            ("Giant Killer",     "Defeat a Hard boss",                   "bosses"),
+            ("Boss Hunter",      "Defeat 3 bosses total",                "bosses"),
+            ("Near Death",       "Survive a boss fight at 1 HP",         "bosses"),
         ]
 
         for title, desc, category in all_achievements:
@@ -172,13 +177,14 @@ class Database:
                 VALUES (?, ?, ?)
             """, (title, desc, category))
 
-        # Update category for any existing achievements that were seeded without it
-        cursor.execute("UPDATE achievement SET category='tasks'   WHERE title IN ('First Task','Getting Started','Halfway There','Century','Hard Worker','Triple Threat')")
-        cursor.execute("UPDATE achievement SET category='streaks' WHERE title IN ('Consistent','7 Day Discipline','Two Weeks Strong','Dedicated')")
-        cursor.execute("UPDATE achievement SET category='levels'  WHERE title IN ('Rising','Veteran','Elite')")
-        cursor.execute("UPDATE achievement SET category='gold'    WHERE title IN ('Gold Collector','Rich','Big Spender')")
-        cursor.execute("UPDATE achievement SET category='skills'  WHERE title IN ('Mind Level 5','Master','Well Rounded','Creator')")
-        cursor.execute("UPDATE achievement SET category='bosses'  WHERE title IN ('Boss Slayer','Giant Killer','Boss Hunter','Near Death')")
+        # Fix category on any existing rows that had no category set
+        # Safe to run every launch — only updates rows where category is null/empty
+        cursor.execute("""
+            UPDATE achievement SET category='tasks'
+            WHERE category IS NULL OR category=''
+            AND title IN ('First Task','Getting Started','Halfway There',
+                          'Century','Hard Worker','Triple Threat')
+        """)
 
         self.conn.commit()
 
@@ -217,7 +223,6 @@ class Database:
         }
 
     def update_player(self, player):
-        """Save all player fields."""
         cursor = self.conn.cursor()
         cursor.execute("""
             UPDATE player
@@ -307,7 +312,6 @@ class Database:
         return cursor.fetchone()[0] > 0
 
     def get_bosses_defeated_count(self):
-        """Return total number of bosses defeated."""
         cursor = self.conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM boss WHERE defeated=1")
         return cursor.fetchone()[0]
@@ -405,13 +409,11 @@ class Database:
         self.conn.commit()
 
     def get_total_tasks_completed(self):
-        """Return total number of tasks ever completed (from history)."""
         cursor = self.conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM task_history")
         return cursor.fetchone()[0]
 
     def get_tasks_completed_today(self):
-        """Return number of tasks completed today."""
         from datetime import date
         today = date.today().isoformat()
         cursor = self.conn.cursor()
@@ -421,7 +423,6 @@ class Database:
         return cursor.fetchone()[0]
 
     def get_max_task_streak(self):
-        """Return the highest streak value across all tasks."""
         cursor = self.conn.cursor()
         cursor.execute("SELECT MAX(streak) FROM task")
         result = cursor.fetchone()[0]
@@ -503,20 +504,17 @@ class Database:
         return True
 
     def get_skills_above_level(self, min_level):
-        """Return count of skills at or above a given level."""
         cursor = self.conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM skill WHERE level >= ?", (min_level,))
         return cursor.fetchone()[0]
 
     def get_max_skill_level(self):
-        """Return the highest level any skill has reached."""
         cursor = self.conn.cursor()
         cursor.execute("SELECT MAX(level) FROM skill")
         result = cursor.fetchone()[0]
         return result or 0
 
     def get_custom_skill_count(self):
-        """Return number of custom (non-core) skills."""
         cursor = self.conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM skill WHERE is_core=0")
         return cursor.fetchone()[0]
@@ -526,7 +524,6 @@ class Database:
     # -------------------------------------------------------------------------
 
     def unlock_achievement(self, title):
-        """Mark an achievement as unlocked. Safe to call multiple times."""
         cursor = self.conn.cursor()
         cursor.execute(
             "UPDATE achievement SET unlocked=1 WHERE title=?", (title,)
@@ -534,7 +531,6 @@ class Database:
         self.conn.commit()
 
     def get_achievement(self):
-        """Fetch all achievements ordered by category."""
         cursor = self.conn.cursor()
         cursor.execute("""
             SELECT title, description, unlocked, category
@@ -549,7 +545,6 @@ class Database:
         } for r in cursor.fetchall()]
 
     def get_achievement_count(self):
-        """Return (unlocked, total) achievement counts."""
         cursor = self.conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM achievement WHERE unlocked=1")
         unlocked = cursor.fetchone()[0]
@@ -575,3 +570,21 @@ class Database:
 
     def commit(self):
         self.conn.commit()
+
+    def clean_duplicate_achievements(self):
+        """
+        One-time cleanup to remove duplicate achievements.
+        Keeps the row with the lowest id for each title.
+        Safe to call multiple times — does nothing if no duplicates exist.
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            DELETE FROM achievement
+            WHERE id NOT IN (
+                SELECT MIN(id)
+                FROM achievement
+                GROUP BY title
+            )
+        """)
+        self.conn.commit()
+        return cursor.rowcount  # returns number of duplicates removed

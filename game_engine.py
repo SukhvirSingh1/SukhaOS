@@ -2,6 +2,8 @@
 game_engine.py
 ==============
 Core game logic for SukhaOS.
+Now tracks all events (level ups, skill ups, achievements)
+so the UI can show proper reward popups for each one.
 """
 
 from datetime import date, datetime
@@ -47,16 +49,8 @@ class GameEngine:
 
     def check_all_achievements(self, player=None, new_streak=None, task_difficulty=None):
         """
-        Central achievement checker — called after any meaningful game event.
-        Checks all conditions and unlocks any that are newly met.
-
-        Args:
-            player (dict): Current player data. Fetched fresh if not provided.
-            new_streak (int): Streak value from the just-completed task.
-            task_difficulty (str): Difficulty of the just-completed task.
-
-        Returns:
-            list: Titles of newly unlocked achievements (for notification).
+        Check all achievement conditions and unlock any newly met ones.
+        Returns list of newly unlocked achievement titles.
         """
         if player is None:
             player = self.db.get_player()
@@ -74,44 +68,37 @@ class GameEngine:
                     self.db.unlock_achievement(title)
                     newly_unlocked.append(title)
 
-        # --- Task achievements ---
         total_completed = self.db.get_total_tasks_completed()
-        check("First Task",    total_completed >= 1)
+        check("First Task",      total_completed >= 1)
         check("Getting Started", total_completed >= 10)
-        check("Halfway There", total_completed >= 50)
-        check("Century",       total_completed >= 100)
-        check("Hard Worker",   task_difficulty and task_difficulty.lower() == "hard")
-        check("Triple Threat", self.db.get_tasks_completed_today() >= 3)
+        check("Halfway There",   total_completed >= 50)
+        check("Century",         total_completed >= 100)
+        check("Hard Worker",     task_difficulty and task_difficulty.lower() == "hard")
+        check("Triple Threat",   self.db.get_tasks_completed_today() >= 3)
 
-        # --- Streak achievements ---
-        login_streak = player.get("login_streak", 0)
+        login_streak    = player.get("login_streak", 0)
         max_task_streak = self.db.get_max_task_streak()
         check("Consistent",       login_streak >= 3)
         check("Dedicated",        login_streak >= 30)
         check("7 Day Discipline", new_streak is not None and new_streak >= 7)
         check("Two Weeks Strong", max_task_streak >= 14)
 
-        # --- Level achievements ---
         check("Rising",   player["level"] >= 5)
         check("Veteran",  player["level"] >= 10)
         check("Elite",    player["level"] >= 25)
 
-        # --- Gold achievements ---
         check("Gold Collector", player.get("total_gold_earned", 0) >= 500)
         check("Rich",           player.get("total_gold_earned", 0) >= 1000)
         check("Big Spender",    player.get("gold_spent", 0) >= 500)
 
-        # --- Skill achievements ---
         check("Mind Level 5",  self.db.get_skill("Mind")["level"] >= 5)
         check("Master",        self.db.get_max_skill_level() >= 10)
         check("Well Rounded",  self.db.get_skills_above_level(5) >= 3)
         check("Creator",       self.db.get_custom_skill_count() >= 1)
 
-        # --- Boss achievements ---
         bosses_defeated = self.db.get_bosses_defeated_count()
         check("Boss Slayer",  bosses_defeated >= 1)
         check("Boss Hunter",  bosses_defeated >= 3)
-        # Giant Killer and Near Death are unlocked directly in attack_boss()
 
         return newly_unlocked
 
@@ -163,7 +150,6 @@ class GameEngine:
         player = self.db.get_player()
         damage = boss["attack_damage"] * days_ignored
         new_hp = max(1, player["current_hp"] - damage)
-
         player["current_hp"] = new_hp
         self.db.update_player(player)
 
@@ -177,9 +163,7 @@ class GameEngine:
     def attack_boss(self, boss_id):
         """
         One round of combat.
-        Spends 1 attack point, deals damage to boss, boss strikes back.
-        Near death: HP=1, lose 50 gold + 20 attack points.
-        Victory: rewards applied, achievements checked.
+        Returns full result dict including any achievements unlocked on victory.
         """
         boss   = self.db.get_active_boss()
         player = self.db.get_player()
@@ -191,26 +175,26 @@ class GameEngine:
 
         player["attack_points"] -= 1
 
-        # Player hits boss
         player_damage = self.get_attack_damage()
         new_boss_hp   = max(0, boss["hp"] - player_damage)
         self.db.update_boss_hp(boss_id, new_boss_hp)
 
-        # Boss hits back
         boss_damage   = boss["attack_damage"]
         new_player_hp = player["current_hp"] - boss_damage
 
-        near_death = False
-        rewards    = None
+        near_death          = False
+        rewards             = None
+        newly_unlocked      = []
 
         if new_player_hp <= 0:
-            new_player_hp          = 1
-            near_death             = True
-            gold_penalty           = min(player["gold"], 50)
-            atk_penalty            = min(player["attack_points"], 20)
-            player["gold"]         = max(0, player["gold"] - gold_penalty)
+            new_player_hp           = 1
+            near_death              = True
+            gold_penalty            = min(player["gold"], 50)
+            atk_penalty             = min(player["attack_points"], 20)
+            player["gold"]          = max(0, player["gold"] - gold_penalty)
             player["attack_points"] = max(0, player["attack_points"] - atk_penalty)
             self.db.unlock_achievement("Near Death")
+            newly_unlocked.append("Near Death")
 
         player["current_hp"] = new_player_hp
 
@@ -221,18 +205,19 @@ class GameEngine:
 
             if boss["tier"] == "hard":
                 self.db.unlock_achievement("Giant Killer")
+                newly_unlocked.append("Giant Killer")
 
-            tier_rewards             = self.BOSS_REWARDS[boss["tier"]]
-            player["gold"]          += tier_rewards["gold"]
-            player["oxp"]           += tier_rewards["oxp"]
-            player["attack_points"] += tier_rewards["attack"]
+            tier_rewards                = self.BOSS_REWARDS[boss["tier"]]
+            player["gold"]             += tier_rewards["gold"]
+            player["oxp"]              += tier_rewards["oxp"]
+            player["attack_points"]    += tier_rewards["attack"]
             player["total_gold_earned"] = player.get("total_gold_earned", 0) + tier_rewards["gold"]
 
             self.check_player_level_up(player)
             self.db.update_player(player)
 
-            # Check boss achievements after saving
-            self.check_all_achievements(player=self.db.get_player())
+            extra = self.check_all_achievements(player=self.db.get_player())
+            newly_unlocked.extend(extra)
             rewards = tier_rewards
         else:
             self.db.update_player(player)
@@ -246,6 +231,8 @@ class GameEngine:
             "player_near_death": near_death,
             "rewards":           rewards,
             "attack_points":     player["attack_points"],
+            "newly_unlocked":    newly_unlocked,
+            "boss":              boss,
         }
 
     # -------------------------------------------------------------------------
@@ -254,7 +241,16 @@ class GameEngine:
 
     def complete_task(self, task_id):
         """
-        Process task completion. Returns dict with level/boss info, or False.
+        Process task completion.
+
+        Returns a rich dict containing every event that happened:
+            - base rewards (oxp, gold, attack points)
+            - skill_events: list of {name, old_level, new_level, xp_gained}
+            - level_events: list of {old_level, new_level, hp_gained, atk_gained}
+            - newly_unlocked: list of achievement titles
+            - boss: boss dict if one spawned
+            - streak: new streak value
+            - task: task info for display
         """
         task   = self.db.get_task(task_id)
         player = self.db.get_player()
@@ -262,25 +258,38 @@ class GameEngine:
         if task["status"] == "Completed":
             return False
 
-        # Base rewards
-        gold_earned             = task["gold"]
-        player["gold"]         += gold_earned
-        player["oxp"]          += task["oxp"]
+        # --- Base rewards ---
+        gold_earned                 = task["gold"]
+        oxp_earned                  = task["oxp"]
+        player["gold"]             += gold_earned
+        player["oxp"]              += oxp_earned
         player["total_gold_earned"] = player.get("total_gold_earned", 0) + gold_earned
 
         difficulty = task.get("difficulty", "Medium").lower()
-        player["attack_points"] += self.ATTACK_PER_DIFFICULTY.get(difficulty, 10)
+        atk_earned = self.ATTACK_PER_DIFFICULTY.get(difficulty, 10)
+        player["attack_points"] += atk_earned
 
-        # Skill XP
-        rewards = self.db.get_task_rewards(task_id)
+        # --- Skill XP + track level ups ---
+        skill_events = []
+        rewards      = self.db.get_task_rewards(task_id)
+
         for reward in rewards:
-            skill     = self.db.get_skill(reward["skill_name"])
+            skill      = self.db.get_skill(reward["skill_name"])
+            old_level  = skill["level"]
             skill["xp"] += reward["sxp"]
-            old_level = skill["level"]
             self.check_skill_level_up(skill)
+            new_level  = skill["level"]
 
-            if skill["name"] == "Health" and skill["level"] > old_level:
-                levels_gained        = skill["level"] - old_level
+            skill_events.append({
+                "name":      skill["name"],
+                "old_level": old_level,
+                "new_level": new_level,
+                "xp_gained": reward["sxp"],
+                "leveled_up": new_level > old_level,
+            })
+
+            if skill["name"] == "Health" and new_level > old_level:
+                levels_gained        = new_level - old_level
                 player["max_hp"]    += self.HP_PER_HEALTH_LEVEL * levels_gained
                 player["current_hp"] = min(
                     player["current_hp"] + self.HP_PER_HEALTH_LEVEL * levels_gained,
@@ -289,7 +298,7 @@ class GameEngine:
 
             self.db.update_skill(skill)
 
-        # Streak logic
+        # --- Streak logic ---
         today          = date.today()
         last_completed = task.get("last_completed")
         new_streak     = 1
@@ -308,15 +317,36 @@ class GameEngine:
         if new_streak % 7 == 0:
             player["oxp"] += 50
 
-        old_level = player["level"]
-        self.check_player_level_up(player)
+        # --- Character level up + track events ---
+        old_level    = player["level"]
+        level_events = []
+
+        # Level up manually to capture each level gained
+        while True:
+            required = 100 + (player["level"] - 1) * 50
+            if player["oxp"] >= required:
+                player["oxp"]    -= required
+                player["level"]  += 1
+                player["max_hp"] += self.HP_PER_LEVEL
+                player["current_hp"] = player["max_hp"]
+                player["attack_points"] += self.ATTACK_PER_LEVEL_UP
+
+                level_events.append({
+                    "new_level":  player["level"],
+                    "hp_gained":  self.HP_PER_LEVEL,
+                    "atk_gained": self.ATTACK_PER_LEVEL_UP,
+                    "max_hp":     player["max_hp"],
+                })
+            else:
+                break
+
         new_level = player["level"]
 
+        # --- Save ---
         self.db.mark_task_completed(task_id)
         self.db.update_task_streak(task_id, new_streak)
         self.db.update_player(player)
 
-        # Log to history
         cursor = self.db.conn.cursor()
         cursor.execute("""
             INSERT INTO task_history(task_id, title, difficulty, date_completed)
@@ -325,14 +355,14 @@ class GameEngine:
               task.get("difficulty", "Medium"), date.today().isoformat()))
         self.db.conn.commit()
 
-        # Check all achievements
+        # --- Achievements ---
         newly_unlocked = self.check_all_achievements(
             player=self.db.get_player(),
             new_streak=new_streak,
             task_difficulty=task.get("difficulty")
         )
 
-        # Boss spawn check
+        # --- Boss spawn ---
         spawned_boss = None
         if new_level > old_level:
             for lvl in range(old_level + 1, new_level + 1):
@@ -341,10 +371,20 @@ class GameEngine:
                     break
 
         return {
-            "leveled_up":      new_level > old_level,
-            "new_level":       new_level,
-            "boss":            spawned_boss,
+            # What was earned
+            "oxp_earned":      oxp_earned,
+            "gold_earned":     gold_earned,
+            "atk_earned":      atk_earned,
+            "streak":          new_streak,
+            # Events
+            "skill_events":    skill_events,
+            "level_events":    level_events,
             "newly_unlocked":  newly_unlocked,
+            "boss":            spawned_boss,
+            # Task info for display
+            "task_title":      task["title"],
+            "task_difficulty": task.get("difficulty", "Medium"),
+            "task_period":     task.get("period", "daily"),
         }
 
     # -------------------------------------------------------------------------
@@ -382,21 +422,17 @@ class GameEngine:
         else:
             bonus_msg = f"Day {login_streak} streak. Keep it up!"
 
-        hp_restored          = min(5, player["max_hp"] - player["current_hp"])
-        player["current_hp"] += hp_restored
-        player["gold"]       += gold
-        player["oxp"]        += oxp
+        hp_restored             = min(5, player["max_hp"] - player["current_hp"])
+        player["current_hp"]   += hp_restored
+        player["gold"]         += gold
+        player["oxp"]          += oxp
         player["attack_points"] += bonus_atk
         player["total_gold_earned"] = player.get("total_gold_earned", 0) + gold
 
         self.check_player_level_up(player)
         self.db.update_player(player)
         self.db.update_login(today_str, login_streak)
-
-        # Check login streak achievements
-        self.check_all_achievements(
-            player=self.db.get_player()
-        )
+        self.check_all_achievements(player=self.db.get_player())
 
         return {
             "gold": gold, "oxp": oxp, "streak": login_streak,
@@ -414,14 +450,16 @@ class GameEngine:
         if player["gold"] < 100:
             return False
 
-        player["gold"]      -= 100
-        player["gold_spent"] = player.get("gold_spent", 0) + 100
-        skill["xp"]         += 20
+        player["gold"]       -= 100
+        player["gold_spent"]  = player.get("gold_spent", 0) + 100
+        skill["xp"]          += 20
 
         old_level = skill["level"]
         self.check_skill_level_up(skill)
 
-        if skill["name"] == "Health" and skill["level"] > old_level:
+        skill_leveled_up = skill["level"] > old_level
+
+        if skill["name"] == "Health" and skill_leveled_up:
             levels_gained        = skill["level"] - old_level
             player["max_hp"]    += self.HP_PER_HEALTH_LEVEL * levels_gained
             player["current_hp"] = min(
@@ -432,10 +470,15 @@ class GameEngine:
         self.db.update_skill(skill)
         self.db.update_player(player)
         self.db.commit()
-
-        # Check Big Spender achievement
         self.check_all_achievements(player=self.db.get_player())
-        return True
+
+        return {
+            "success":       True,
+            "skill_name":    skill["name"],
+            "old_level":     old_level,
+            "new_level":     skill["level"],
+            "leveled_up":    skill_leveled_up,
+        }
 
     # -------------------------------------------------------------------------
     # LEVEL UP

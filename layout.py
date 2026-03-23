@@ -55,7 +55,6 @@ BOSS_ART = {
     ]
 }
 
-# Category display config
 CATEGORY_CONFIG = {
     "tasks":   {"label": "📋 Tasks",    "color": "#00ccff"},
     "streaks": {"label": "🔥 Streaks",  "color": "#ff9900"},
@@ -213,11 +212,11 @@ class SkillUI:
                       font=ctk.CTkFont(size=12, weight="bold"),
                       command=self.show_stats
                       ).grid(row=4, column=0, pady=(0,8))
-        
+
         ctk.CTkButton(info_frame, text="🏆 Achievements", height=32,
                       font=ctk.CTkFont(size=12, weight="bold"),
                       command=self.show_achievements
-                      ).grid(row=5, column=0, pady=(0, 8))
+                      ).grid(row=5, column=0, pady=(0,8))
 
         ctk.CTkButton(info_frame, text="Habit Map", height=32,
                       font=ctk.CTkFont(size=12, weight="bold"),
@@ -252,7 +251,7 @@ class SkillUI:
         ctk.CTkButton(side_bar, text="Shop", width=48, height=36,
                       font=ctk.CTkFont(size=11, weight="bold"),
                       command=self.show_shop
-                      ).grid(row=5, column=0, pady=(8,0), padx=6)
+                      ).grid(row=5, column=0, pady=(8,8), padx=6)
 
         self.boss_btn = ctk.CTkButton(side_bar, text="⚔️\nBOSS",
                                        width=48, height=48,
@@ -274,190 +273,371 @@ class SkillUI:
         self._update_boss_ui()
 
     # -------------------------------------------------------------------------
-    # ACHIEVEMENTS SCREEN
+    # RICH REWARD POPUPS
     # -------------------------------------------------------------------------
 
-    def show_achievements(self):
+    def show_task_reward_popup(self, result):
         """
-        Dedicated full achievements screen.
-        Shows all 24 achievements grouped by category with:
-        - Unlocked count per category
-        - Green checkmark for unlocked, grey lock for locked
-        - Progress bar showing overall completion
-        - Category colour coding
+        Show a rich popup after task completion showing everything earned.
+        Includes base rewards, skill XP, streak info.
         """
-        self.clear_content()
+        popup = ctk.CTkToplevel(self.root)
+        popup.title("Task Complete!")
+        popup.geometry("380x420")
+        popup.grab_set()
+        popup.resizable(False, False)
 
-        for i in range(10):
-            self.task_container.grid_rowconfigure(i, weight=0)
-            self.task_container.grid_columnconfigure(i, weight=0)
-
-        self.task_container.grid_rowconfigure(2, weight=1)
-        self.task_container.grid_columnconfigure(0, weight=1)
+        diff_colors = {"easy":"#00cc66","medium":"#ffcc00","hard":"#ff4444"}
+        diff_color  = diff_colors.get(result["task_difficulty"].lower(), "#aaaaaa")
 
         # Header
-        unlocked, total = self.db.get_achievement_count()
+        ctk.CTkLabel(popup, text="✅  Task Completed!",
+                     text_color="#44ff88",
+                     font=ctk.CTkFont(size=16, weight="bold")
+                     ).pack(pady=(20,4))
 
-        ctk.CTkLabel(self.task_container,
-                     text="🏆  Achievements",
-                     font=ctk.CTkFont(size=18, weight="bold")
-                     ).grid(row=0, column=0, pady=(8,2))
+        ctk.CTkLabel(popup, text=result["task_title"],
+                     text_color="#E0E0E0",
+                     font=ctk.CTkFont(size=13)
+                     ).pack(pady=(0,4))
 
-        ctk.CTkLabel(self.task_container,
-                     text=f"{unlocked} / {total} unlocked",
+        ctk.CTkLabel(popup,
+                     text=f"{result['task_period'].capitalize()}  •  {result['task_difficulty']}",
+                     text_color=diff_color,
+                     font=ctk.CTkFont(size=11)
+                     ).pack(pady=(0,12))
+
+        # Divider
+        ctk.CTkFrame(popup, height=1, fg_color="#333355").pack(fill="x", padx=20, pady=(0,12))
+
+        # Rewards section
+        ctk.CTkLabel(popup, text="Rewards",
                      text_color="#aaaaaa",
-                     font=ctk.CTkFont(size=12)
-                     ).grid(row=1, column=0, pady=(0,4))
+                     font=ctk.CTkFont(size=11, weight="bold")
+                     ).pack(anchor="w", padx=24)
 
-        overall_bar = ctk.CTkProgressBar(self.task_container,
-                                          height=12, corner_radius=6,
-                                          progress_color="#ffd700")
-        overall_bar.set(unlocked / total if total > 0 else 0)
-        overall_bar.grid(row=2, column=0, padx=60, sticky="ew", pady=(0,8))
+        rewards_frame = ctk.CTkFrame(popup, fg_color="#1e1e2e", corner_radius=8)
+        rewards_frame.pack(fill="x", padx=20, pady=(4,12))
 
-        # Scrollable achievements list
-        ach_canvas = tk.Canvas(self.task_container,
-                                bg="#1e1e2e", highlightthickness=0)
-        ach_canvas.grid(row=3, column=0, sticky="nsew")
+        rewards_data = [
+            (f"+ {result['oxp_earned']} OXP",    "#00ccff"),
+            (f"+ {result['gold_earned']} Gold",   "#ffd700"),
+            (f"+ {result['atk_earned']} ATK pts", "#ff9900"),
+        ]
+        for text, color in rewards_data:
+            ctk.CTkLabel(rewards_frame, text=text,
+                         text_color=color,
+                         font=ctk.CTkFont(size=13, weight="bold")
+                         ).pack(anchor="w", padx=16, pady=3)
 
-        ach_scrollbar = ctk.CTkScrollbar(self.task_container,
-                                          command=ach_canvas.yview)
-        ach_scrollbar.grid(row=3, column=1, sticky="ns")
-        ach_canvas.configure(yscrollcommand=ach_scrollbar.set)
-        self.task_container.grid_rowconfigure(3, weight=1)
-        self.task_container.grid_columnconfigure(1, weight=0)
+        # Streak
+        if result["streak"] > 1:
+            ctk.CTkLabel(popup,
+                         text=f"🔥 Streak: {result['streak']} days!",
+                         text_color="#ff9900",
+                         font=ctk.CTkFont(size=12, weight="bold")
+                         ).pack(pady=(0,8))
 
-        ach_frame = ctk.CTkFrame(ach_canvas, fg_color="transparent")
-        ach_window = ach_canvas.create_window((0,0), window=ach_frame, anchor="nw")
-
-        ach_frame.bind("<Configure>", lambda e: ach_canvas.configure(
-            scrollregion=ach_canvas.bbox("all")
-        ))
-        ach_canvas.bind("<Configure>", lambda e: ach_canvas.itemconfig(
-            ach_window, width=e.width
-        ))
-        ach_canvas.bind("<MouseWheel>", lambda e: ach_canvas.yview_scroll(
-            int(-1*(e.delta/120)), "units"
-        ))
-
-        # Group achievements by category
-        achievements = self.db.get_achievement()
-        categories   = {}
-        for ach in achievements:
-            cat = ach.get("category", "general")
-            if cat not in categories:
-                categories[cat] = []
-            categories[cat].append(ach)
-
-        # Render each category
-        category_order = ["tasks", "streaks", "levels", "gold", "skills", "bosses"]
-
-        for cat in category_order:
-            if cat not in categories:
-                continue
-
-            ach_list    = categories[cat]
-            cat_config  = CATEGORY_CONFIG.get(cat, {"label": cat.title(), "color": "#aaaaaa"})
-            cat_unlocked = sum(1 for a in ach_list if a["unlocked"])
-            cat_total    = len(ach_list)
-
-            # Category header
-            cat_header = ctk.CTkFrame(ach_frame, corner_radius=8,
-                                       fg_color="#252535")
-            cat_header.pack(fill="x", padx=12, pady=(10,2))
-            cat_header.columnconfigure(1, weight=1)
-
-            ctk.CTkLabel(cat_header,
-                         text=cat_config["label"],
-                         text_color=cat_config["color"],
-                         font=ctk.CTkFont(size=14, weight="bold")
-                         ).grid(row=0, column=0, padx=12, pady=8, sticky="w")
-
-            ctk.CTkLabel(cat_header,
-                         text=f"{cat_unlocked}/{cat_total}",
+        # Skill XP gained
+        skill_events = [s for s in result.get("skill_events", []) if not s["leveled_up"]]
+        if skill_events:
+            ctk.CTkLabel(popup, text="Skill XP",
                          text_color="#aaaaaa",
-                         font=ctk.CTkFont(size=11)
-                         ).grid(row=0, column=1, padx=12, pady=8, sticky="e")
+                         font=ctk.CTkFont(size=11, weight="bold")
+                         ).pack(anchor="w", padx=24)
+            skills_frame = ctk.CTkFrame(popup, fg_color="#1e1e2e", corner_radius=8)
+            skills_frame.pack(fill="x", padx=20, pady=(4,12))
+            for s in skill_events:
+                ctk.CTkLabel(skills_frame,
+                             text=f"🧠 {s['name']}  + {s['xp_gained']} XP",
+                             text_color="#00ff88",
+                             font=ctk.CTkFont(size=11)
+                             ).pack(anchor="w", padx=16, pady=2)
 
-            # Category progress bar
-            cat_bar = ctk.CTkProgressBar(cat_header, height=6, corner_radius=3,
-                                          progress_color=cat_config["color"])
-            cat_bar.set(cat_unlocked / cat_total if cat_total > 0 else 0)
-            cat_bar.grid(row=1, column=0, columnspan=2, sticky="ew",
-                         padx=12, pady=(0,8))
+        ctk.CTkButton(popup, text="Collect!", height=36,
+                      text_color="#44ff88",
+                      font=ctk.CTkFont(size=13, weight="bold"),
+                      command=popup.destroy
+                      ).pack(pady=8)
 
-            # Achievement rows
-            for ach in ach_list:
-                row_frame = ctk.CTkFrame(ach_frame, corner_radius=6,
-                                          fg_color="#1e1e2e" if ach["unlocked"] else "#181825")
-                row_frame.pack(fill="x", padx=12, pady=2)
-                row_frame.columnconfigure(1, weight=1)
-
-                # Icon
-                icon  = "✅" if ach["unlocked"] else "🔒"
-                color = cat_config["color"] if ach["unlocked"] else "#555555"
-
-                ctk.CTkLabel(row_frame, text=icon,
-                             font=ctk.CTkFont(size=16)
-                             ).grid(row=0, column=0, padx=(12,8), pady=10)
-
-                ctk.CTkLabel(row_frame,
-                             text=ach["title"],
-                             text_color=color,
-                             font=ctk.CTkFont(size=12, weight="bold"),
-                             anchor="w"
-                             ).grid(row=0, column=1, sticky="w", pady=(10,2))
-
-                ctk.CTkLabel(row_frame,
-                             text=ach["description"],
-                             text_color="#888888",
-                             font=ctk.CTkFont(size=10),
-                             anchor="w"
-                             ).grid(row=1, column=1, sticky="w", pady=(0,8))
-
-        # Back button at bottom
-        ctk.CTkButton(self.task_container,
-                      text="← Back", height=28, width=80,
-                      font=ctk.CTkFont(size=11),
-                      command=lambda: self.switch_menu(self.current_period)
-                      ).grid(row=4, column=0, pady=6)
-
-    # -------------------------------------------------------------------------
-    # ACHIEVEMENT NOTIFICATION
-    # -------------------------------------------------------------------------
-
-    def show_achievement_popup(self, titles):
+    def show_level_up_popup(self, level_event):
         """
-        Show a popup for newly unlocked achievements.
-        Called after task completion if any were unlocked.
-
-        Args:
-            titles (list): List of newly unlocked achievement titles.
+        Show a big celebration popup for character level up.
+        One popup per level gained.
         """
-        if not titles:
+        popup = ctk.CTkToplevel(self.root)
+        popup.title("Level Up!")
+        popup.geometry("360x340")
+        popup.grab_set()
+        popup.resizable(False, False)
+
+        # Big level number
+        ctk.CTkLabel(popup, text="⬆️  LEVEL UP!",
+                     text_color="#ffcc00",
+                     font=ctk.CTkFont(size=20, weight="bold")
+                     ).pack(pady=(24,8))
+
+        ctk.CTkLabel(popup,
+                     text=f"Level {level_event['new_level']}",
+                     text_color="#ffffff",
+                     font=ctk.CTkFont(size=36, weight="bold")
+                     ).pack(pady=(0,16))
+
+        ctk.CTkFrame(popup, height=1, fg_color="#333355").pack(fill="x", padx=20, pady=(0,16))
+
+        bonuses_frame = ctk.CTkFrame(popup, fg_color="#1e1e2e", corner_radius=8)
+        bonuses_frame.pack(fill="x", padx=20, pady=(0,16))
+
+        bonuses = [
+            (f"❤️  + {level_event['hp_gained']} Max HP",       "#ff6666"),
+            (f"⚔️  + {level_event['atk_gained']} Attack Pts",  "#ff9900"),
+            (f"💚  Full HP Restored!",                          "#44ff88"),
+        ]
+        for text, color in bonuses:
+            ctk.CTkLabel(bonuses_frame, text=text,
+                         text_color=color,
+                         font=ctk.CTkFont(size=13, weight="bold")
+                         ).pack(anchor="w", padx=16, pady=4)
+
+        ctk.CTkLabel(popup,
+                     text=f"Max HP: {level_event['max_hp']}",
+                     text_color="#aaaaaa",
+                     font=ctk.CTkFont(size=11)
+                     ).pack(pady=(0,12))
+
+        ctk.CTkButton(popup, text="Let's Go! 💪", height=36,
+                      text_color="#ffcc00",
+                      font=ctk.CTkFont(size=13, weight="bold"),
+                      command=popup.destroy
+                      ).pack(pady=4)
+
+    def show_skill_level_up_popup(self, skill_event):
+        """
+        Show a popup when a skill levels up.
+        One popup per skill that leveled up.
+        """
+        popup = ctk.CTkToplevel(self.root)
+        popup.title("Skill Level Up!")
+        popup.geometry("340x280")
+        popup.grab_set()
+        popup.resizable(False, False)
+
+        ctk.CTkLabel(popup, text="🧠  Skill Level Up!",
+                     text_color="#00ff88",
+                     font=ctk.CTkFont(size=16, weight="bold")
+                     ).pack(pady=(24,8))
+
+        ctk.CTkLabel(popup,
+                     text=skill_event["name"],
+                     text_color="#ffffff",
+                     font=ctk.CTkFont(size=24, weight="bold")
+                     ).pack(pady=(0,4))
+
+        ctk.CTkLabel(popup,
+                     text=f"Level {skill_event['old_level']}  →  Level {skill_event['new_level']}",
+                     text_color="#00ff88",
+                     font=ctk.CTkFont(size=16)
+                     ).pack(pady=(0,16))
+
+        ctk.CTkFrame(popup, height=1, fg_color="#333355").pack(fill="x", padx=20, pady=(0,16))
+
+        # Special message for core skills
+        special = {
+            "Health":   "❤️  Max HP increased!",
+            "Strength": "⚔️  Attack damage increased!",
+            "Mind":     "🧠  Intelligence grows!",
+        }
+        if skill_event["name"] in special:
+            ctk.CTkLabel(popup,
+                         text=special[skill_event["name"]],
+                         text_color="#ffcc00",
+                         font=ctk.CTkFont(size=12)
+                         ).pack(pady=(0,12))
+
+        next_required = 50 + (skill_event["new_level"] - 1) * 25
+        ctk.CTkLabel(popup,
+                     text=f"Next level: {next_required} XP required",
+                     text_color="#aaaaaa",
+                     font=ctk.CTkFont(size=11)
+                     ).pack(pady=(0,16))
+
+        ctk.CTkButton(popup, text="Nice! 🔥", height=36,
+                      text_color="#00ff88",
+                      font=ctk.CTkFont(size=13, weight="bold"),
+                      command=popup.destroy
+                      ).pack(pady=4)
+
+    def show_achievement_unlock_popup(self, title):
+        """
+        Show a popup for a single newly unlocked achievement.
+        """
+        # Get achievement details
+        achievements = self.db.get_achievement()
+        ach = next((a for a in achievements if a["title"] == title), None)
+        if not ach:
             return
+
+        cat_config = CATEGORY_CONFIG.get(ach.get("category","general"),
+                                          {"label":"General","color":"#aaaaaa"})
 
         popup = ctk.CTkToplevel(self.root)
         popup.title("Achievement Unlocked!")
-        popup.geometry("340x80")
+        popup.geometry("340x260")
         popup.grab_set()
+        popup.resizable(False, False)
 
-        # Stack multiple achievements if several unlocked at once
-        height = 80 + (len(titles) - 1) * 40
-        popup.geometry(f"340x{height}")
-
-        ctk.CTkLabel(popup, text="🏆 Achievement Unlocked!",
+        ctk.CTkLabel(popup, text="🏆  Achievement Unlocked!",
                      text_color="#ffd700",
-                     font=ctk.CTkFont(size=13, weight="bold")
-                     ).pack(pady=(14,4))
+                     font=ctk.CTkFont(size=15, weight="bold")
+                     ).pack(pady=(24,8))
 
-        for title in titles:
-            ctk.CTkLabel(popup, text=title,
-                         text_color="#E0E0E0",
-                         font=ctk.CTkFont(size=11)
-                         ).pack(pady=2)
+        ctk.CTkLabel(popup,
+                     text=cat_config["label"],
+                     text_color=cat_config["color"],
+                     font=ctk.CTkFont(size=11)
+                     ).pack(pady=(0,8))
 
-        popup.after(3000, popup.destroy)
+        ach_frame = ctk.CTkFrame(popup, fg_color="#1e1e2e", corner_radius=10)
+        ach_frame.pack(fill="x", padx=24, pady=(0,16))
+
+        ctk.CTkLabel(ach_frame,
+                     text=f"✅  {ach['title']}",
+                     text_color=cat_config["color"],
+                     font=ctk.CTkFont(size=14, weight="bold")
+                     ).pack(padx=16, pady=(12,4))
+
+        ctk.CTkLabel(ach_frame,
+                     text=ach["description"],
+                     text_color="#aaaaaa",
+                     font=ctk.CTkFont(size=11),
+                     wraplength=280
+                     ).pack(padx=16, pady=(0,12))
+
+        unlocked, total = self.db.get_achievement_count()
+        ctk.CTkLabel(popup,
+                     text=f"{unlocked} / {total} achievements unlocked",
+                     text_color="#555555",
+                     font=ctk.CTkFont(size=10)
+                     ).pack(pady=(0,8))
+
+        ctk.CTkButton(popup, text="Awesome! 🏆", height=36,
+                      text_color="#ffd700",
+                      font=ctk.CTkFont(size=13, weight="bold"),
+                      command=popup.destroy
+                      ).pack(pady=4)
+
+    def show_boss_victory_popup(self, result):
+        """
+        Show a victory screen after defeating a boss.
+        Shows all rewards and any achievements unlocked.
+        """
+        boss    = result.get("boss", {})
+        rewards = result.get("rewards", {})
+
+        tier_colors = {"easy":"#ff8800","medium":"#ff4400","hard":"#ff0000"}
+        tier_color  = tier_colors.get(boss.get("tier","easy"), "#ff8800")
+
+        popup = ctk.CTkToplevel(self.root)
+        popup.title("Boss Defeated!")
+        popup.geometry("380x420")
+        popup.grab_set()
+        popup.resizable(False, False)
+
+        ctk.CTkLabel(popup, text="⚔️  BOSS DEFEATED!",
+                     text_color="#ffcc00",
+                     font=ctk.CTkFont(size=18, weight="bold")
+                     ).pack(pady=(20,4))
+
+        ctk.CTkLabel(popup,
+                     text=boss.get("name","Boss"),
+                     text_color=tier_color,
+                     font=ctk.CTkFont(size=14, weight="bold")
+                     ).pack(pady=(0,4))
+
+        ctk.CTkLabel(popup,
+                     text=boss.get("tier","").upper(),
+                     text_color=tier_color,
+                     font=ctk.CTkFont(size=11)
+                     ).pack(pady=(0,12))
+
+        ctk.CTkFrame(popup, height=1, fg_color="#333355").pack(fill="x", padx=20, pady=(0,12))
+
+        ctk.CTkLabel(popup, text="Victory Rewards",
+                     text_color="#aaaaaa",
+                     font=ctk.CTkFont(size=11, weight="bold")
+                     ).pack(anchor="w", padx=24)
+
+        rewards_frame = ctk.CTkFrame(popup, fg_color="#1e1e2e", corner_radius=8)
+        rewards_frame.pack(fill="x", padx=20, pady=(4,12))
+
+        reward_items = [
+            (f"+ {rewards.get('gold',0)} Gold",   "#ffd700"),
+            (f"+ {rewards.get('oxp',0)} OXP",     "#00ccff"),
+            (f"+ {rewards.get('attack',0)} ATK",  "#ff9900"),
+        ]
+        for text, color in reward_items:
+            ctk.CTkLabel(rewards_frame, text=text,
+                         text_color=color,
+                         font=ctk.CTkFont(size=14, weight="bold")
+                         ).pack(anchor="w", padx=16, pady=4)
+
+        # Achievements unlocked from this fight
+        newly_unlocked = result.get("newly_unlocked", [])
+        if newly_unlocked:
+            ctk.CTkLabel(popup, text="Achievements Unlocked",
+                         text_color="#ffd700",
+                         font=ctk.CTkFont(size=11, weight="bold")
+                         ).pack(anchor="w", padx=24, pady=(4,0))
+            for title in newly_unlocked:
+                ctk.CTkLabel(popup, text=f"🏆 {title}",
+                             text_color="#ffd700",
+                             font=ctk.CTkFont(size=11)
+                             ).pack(anchor="w", padx=28, pady=1)
+
+        ctk.CTkButton(popup, text="Victory! 🎉", height=36,
+                      text_color="#ffcc00",
+                      font=ctk.CTkFont(size=13, weight="bold"),
+                      command=popup.destroy
+                      ).pack(pady=12)
+
+    def show_shop_skill_up_popup(self, result):
+        """
+        Show a popup when buying a skill boost causes a skill level up.
+        """
+        if not result.get("leveled_up"):
+            return
+
+        skill_event = {
+            "name":      result["skill_name"],
+            "old_level": result["old_level"],
+            "new_level": result["new_level"],
+            "xp_gained": 20,
+            "leveled_up": True,
+        }
+        self.show_skill_level_up_popup(skill_event)
+
+    def _show_popups_in_sequence(self, popups):
+        """
+        Show a list of popup-creating functions one after another.
+        Each popup must be closed before the next one appears.
+        This prevents popup overlap.
+
+        Args:
+            popups (list): List of callables, each creates and shows one popup.
+        """
+        if not popups:
+            return
+
+        def show_next(index):
+            if index >= len(popups):
+                return
+            # Wait for previous popup to close by checking after 200ms
+            popups[index]()
+            # Chain: after this popup is created, monitor for it to close
+            # then show the next one
+            self.root.after(500, lambda: show_next(index + 1))
+
+        show_next(0)
 
     # -------------------------------------------------------------------------
     # BOSS UI
@@ -472,7 +652,7 @@ class SkillUI:
                 text_color=tier_colors.get(boss["tier"],"#ff0000")
             )
             self.boss_alert_label.bind("<Button-1>", lambda e: self.open_boss_fight())
-            self.boss_btn.grid(row=7, column=0, pady=(8,8), padx=6)
+            self.boss_btn.grid(row=7, column=0, pady=(0,8), padx=6)
         else:
             self.boss_alert_label.configure(text="")
             self.boss_btn.grid_remove()
@@ -496,8 +676,7 @@ class SkillUI:
                      font=ctk.CTkFont(size=13, weight="bold")
                      ).pack(pady=4)
         ctk.CTkLabel(popup, text=f'"{boss["taunt"]}"',
-                     text_color="#aaaaaa", font=ctk.CTkFont(size=10),
-                     wraplength=380
+                     text_color="#aaaaaa", font=ctk.CTkFont(size=10), wraplength=380
                      ).pack(pady=4)
         ctk.CTkLabel(popup,
                      text=f"Deals {boss['attack_damage']} HP damage per day if ignored!",
@@ -665,7 +844,7 @@ class SkillUI:
             boss_hp_bar.set(result["boss_hp"] / boss["max_hp"])
             boss_hp_label.configure(text=f"{result['boss_hp']} / {boss['max_hp']}")
 
-            updated = self.db.get_player()
+            updated  = self.db.get_player()
             hp_ratio = result["player_hp"] / updated["max_hp"]
             player_hp_bar.set(max(0, hp_ratio))
             player_hp_label.configure(text=f"{result['player_hp']} / {updated['max_hp']}")
@@ -675,15 +854,13 @@ class SkillUI:
             fight.after(150, lambda: art_canvas.config(bg="#1a1a2e"))
 
             if result["boss_defeated"]:
-                rewards = result["rewards"]
-                combat_log.configure(
-                    text=f"BOSS DEFEATED! 🎉 +{rewards['gold']} Gold, +{rewards['oxp']} OXP, +{rewards['attack']} ATK",
-                    text_color="#ffcc00"
-                )
                 attack_btn.configure(state="disabled")
-                fight.after(2500, lambda: [fight.destroy(),
-                                           self._update_boss_ui(),
-                                           self.refresh_player_ui()])
+                fight.after(1000, lambda: [
+                    fight.destroy(),
+                    self._update_boss_ui(),
+                    self.refresh_player_ui(),
+                    self.show_boss_victory_popup(result)
+                ])
                 return
 
             if result["player_near_death"]:
@@ -953,6 +1130,116 @@ class SkillUI:
             bar.set(skill["xp"] / required if required > 0 else 0)
             bar.grid(row=start_row+index*2+1, column=0, sticky="ew", padx=20, pady=(0,4))
 
+    def show_achievements(self):
+        self.clear_content()
+
+        for i in range(10):
+            self.task_container.grid_rowconfigure(i, weight=0)
+            self.task_container.grid_columnconfigure(i, weight=0)
+
+        self.task_container.grid_rowconfigure(3, weight=1)
+        self.task_container.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(self.task_container, text="🏆  Achievements",
+                     font=ctk.CTkFont(size=18, weight="bold")
+                     ).grid(row=0, column=0, columnspan=2, pady=(8,2))
+
+        unlocked, total = self.db.get_achievement_count()
+
+        ctk.CTkLabel(self.task_container,
+                     text=f"{unlocked} / {total} unlocked",
+                     text_color="#aaaaaa", font=ctk.CTkFont(size=12)
+                     ).grid(row=1, column=0, columnspan=2, pady=(0,4))
+
+        overall_bar = ctk.CTkProgressBar(self.task_container,
+                                          height=12, corner_radius=6,
+                                          progress_color="#ffd700")
+        overall_bar.set(unlocked / total if total > 0 else 0)
+        overall_bar.grid(row=2, column=0, columnspan=2, padx=60,
+                         sticky="ew", pady=(0,8))
+
+        ach_canvas = tk.Canvas(self.task_container, bg="#1e1e2e", highlightthickness=0)
+        ach_canvas.grid(row=3, column=0, sticky="nsew")
+
+        ach_scrollbar = ctk.CTkScrollbar(self.task_container, command=ach_canvas.yview)
+        ach_scrollbar.grid(row=3, column=1, sticky="ns")
+        ach_canvas.configure(yscrollcommand=ach_scrollbar.set)
+        self.task_container.grid_columnconfigure(1, weight=0)
+
+        ach_frame = ctk.CTkFrame(ach_canvas, fg_color="transparent")
+        ach_window = ach_canvas.create_window((0,0), window=ach_frame, anchor="nw")
+
+        ach_frame.bind("<Configure>", lambda e: ach_canvas.configure(
+            scrollregion=ach_canvas.bbox("all")
+        ))
+        ach_canvas.bind("<Configure>", lambda e: ach_canvas.itemconfig(
+            ach_window, width=e.width
+        ))
+        ach_canvas.bind("<MouseWheel>", lambda e: ach_canvas.yview_scroll(
+            int(-1*(e.delta/120)), "units"
+        ))
+
+        achievements    = self.db.get_achievement()
+        categories      = {}
+        for ach in achievements:
+            cat = ach.get("category","general")
+            if cat not in categories:
+                categories[cat] = []
+            categories[cat].append(ach)
+
+        for cat in ["tasks","streaks","levels","gold","skills","bosses"]:
+            if cat not in categories:
+                continue
+
+            ach_list     = categories[cat]
+            cat_config   = CATEGORY_CONFIG.get(cat, {"label":cat.title(),"color":"#aaaaaa"})
+            cat_unlocked = sum(1 for a in ach_list if a["unlocked"])
+            cat_total    = len(ach_list)
+
+            cat_header = ctk.CTkFrame(ach_frame, corner_radius=8, fg_color="#252535")
+            cat_header.pack(fill="x", padx=12, pady=(10,2))
+            cat_header.columnconfigure(1, weight=1)
+
+            ctk.CTkLabel(cat_header, text=cat_config["label"],
+                         text_color=cat_config["color"],
+                         font=ctk.CTkFont(size=14, weight="bold")
+                         ).grid(row=0, column=0, padx=12, pady=8, sticky="w")
+
+            ctk.CTkLabel(cat_header, text=f"{cat_unlocked}/{cat_total}",
+                         text_color="#aaaaaa", font=ctk.CTkFont(size=11)
+                         ).grid(row=0, column=1, padx=12, pady=8, sticky="e")
+
+            cat_bar = ctk.CTkProgressBar(cat_header, height=6, corner_radius=3,
+                                          progress_color=cat_config["color"])
+            cat_bar.set(cat_unlocked / cat_total if cat_total > 0 else 0)
+            cat_bar.grid(row=1, column=0, columnspan=2, sticky="ew", padx=12, pady=(0,8))
+
+            for ach in ach_list:
+                row_frame = ctk.CTkFrame(ach_frame, corner_radius=6,
+                                          fg_color="#1e1e2e" if ach["unlocked"] else "#181825")
+                row_frame.pack(fill="x", padx=12, pady=2)
+                row_frame.columnconfigure(1, weight=1)
+
+                icon  = "✅" if ach["unlocked"] else "🔒"
+                color = cat_config["color"] if ach["unlocked"] else "#555555"
+
+                ctk.CTkLabel(row_frame, text=icon, font=ctk.CTkFont(size=16)
+                             ).grid(row=0, column=0, padx=(12,8), pady=10)
+
+                ctk.CTkLabel(row_frame, text=ach["title"],
+                             text_color=color,
+                             font=ctk.CTkFont(size=12, weight="bold"), anchor="w"
+                             ).grid(row=0, column=1, sticky="w", pady=(10,2))
+
+                ctk.CTkLabel(row_frame, text=ach["description"],
+                             text_color="#888888", font=ctk.CTkFont(size=10), anchor="w"
+                             ).grid(row=1, column=1, sticky="w", pady=(0,8))
+
+        ctk.CTkButton(self.task_container, text="← Back", height=28, width=80,
+                      font=ctk.CTkFont(size=11),
+                      command=lambda: self.switch_menu(self.current_period)
+                      ).grid(row=4, column=0, pady=6)
+
     def show_shop(self):
         self.clear_content()
         ctk.CTkLabel(self.task_container, text="Skill Boost Shop",
@@ -1017,8 +1304,7 @@ class SkillUI:
         history = self.db.get_task_history()
         if not history:
             tk.Label(history_frame, text="No completed tasks yet. Get to work!",
-                     bg="#2b2b2b", fg="#aaaaaa", font=("Arial",11)
-                     ).pack(pady=20)
+                     bg="#2b2b2b", fg="#aaaaaa", font=("Arial",11)).pack(pady=20)
             return
 
         for col, header in enumerate(["Date","Task","Difficulty"]):
@@ -1059,8 +1345,7 @@ class SkillUI:
                      text_color="#ffcc00", font=ctk.CTkFont(size=16, weight="bold")
                      ).pack(pady=(28,6))
         ctk.CTkLabel(popup, text="Enter your character name to begin:",
-                     font=ctk.CTkFont(size=11)
-                     ).pack(pady=4)
+                     font=ctk.CTkFont(size=11)).pack(pady=4)
 
         name_entry = ctk.CTkEntry(popup, width=200, height=36,
                                    font=ctk.CTkFont(size=13), justify="center")
@@ -1082,8 +1367,7 @@ class SkillUI:
         name_entry.bind("<Return>", lambda e: save_name())
         ctk.CTkButton(popup, text="Start Game!", height=38,
                       text_color="#ffcc00", font=ctk.CTkFont(size=13, weight="bold"),
-                      command=save_name
-                      ).pack(pady=6)
+                      command=save_name).pack(pady=6)
 
     def open_add_task_popup(self):
         popup = ctk.CTkToplevel(self.root)
@@ -1157,16 +1441,13 @@ class SkillUI:
             self.db.add_task_reward(task_id, skill1, int(rewards["sxp"]*mult))
             if skill2:
                 self.db.add_task_reward(task_id, skill2, int(rewards["sxp"]*mult))
-
-            # Check Creator achievement when custom skill is used
             self.engine.check_all_achievements()
             popup.destroy()
             self.show_tasks(self.current_period)
 
         ctk.CTkButton(popup, text="Save Task", height=36,
                       font=ctk.CTkFont(size=12, weight="bold"),
-                      command=save_task
-                      ).grid(row=6, column=0, columnspan=2, pady=16)
+                      command=save_task).grid(row=6, column=0, columnspan=2, pady=16)
 
     def open_edit_task_popup(self, task_id):
         task = self.db.get_task(task_id)
@@ -1202,8 +1483,7 @@ class SkillUI:
 
         ctk.CTkButton(popup, text="Save Changes", height=36,
                       font=ctk.CTkFont(size=12, weight="bold"),
-                      command=save_changes
-                      ).grid(row=3, column=0, columnspan=2, pady=16)
+                      command=save_changes).grid(row=3, column=0, columnspan=2, pady=16)
 
     def open_add_skill_popup(self):
         popup = ctk.CTkToplevel(self.root)
@@ -1227,46 +1507,71 @@ class SkillUI:
                 messagebox.showerror("Error",f"'{name}' already exists"); return
             popup.destroy()
             self.refresh_skill_ui()
-            self.show_notification("Skill Added", f"{name} is now tracking!")
-            # Check Creator achievement
             self.engine.check_all_achievements()
 
         name_entry.bind("<Return>", lambda e: save_skill())
         ctk.CTkButton(popup, text="Add Skill", height=34,
                       font=ctk.CTkFont(size=12, weight="bold"),
-                      command=save_skill
-                      ).grid(row=1, column=0, columnspan=2, pady=8)
+                      command=save_skill).grid(row=1, column=0, columnspan=2, pady=8)
 
     # -------------------------------------------------------------------------
     # TASK ACTIONS
     # -------------------------------------------------------------------------
 
     def complete_task(self, task_id):
+        """
+        Handle task completion — shows separate popups for each event:
+        1. Task reward popup (always)
+        2. Skill level up popup (for each skill that leveled)
+        3. Character level up popup (for each level gained)
+        4. Achievement popup (for each achievement unlocked)
+        5. Boss spawn alert (if a boss spawned)
+        All popups appear in sequence, each must be closed before the next.
+        """
         result = self.engine.complete_task(task_id)
 
         if result is False:
             messagebox.showinfo("Task","Task already completed")
             return
 
-        if result.get("leveled_up"):
-            messagebox.showinfo(
-                "Level Up!",
-                f"You reached level {result['new_level']}!\n+{self.engine.ATTACK_PER_LEVEL_UP} attack points!"
-            )
-
-        if result.get("boss"):
-            self.root.after(500, lambda: self.show_boss_alert(result["boss"]))
-
-        # Show achievement popup if any were unlocked
-        newly_unlocked = result.get("newly_unlocked", [])
-        if newly_unlocked:
-            self.root.after(800, lambda: self.show_achievement_popup(newly_unlocked))
-
         self.refresh_player_ui()
         self.refresh_skill_ui()
         self._update_boss_ui()
         self.show_tasks(self.current_period)
-        self.show_notification("Task Completed","Great work! Rewards added.")
+
+        # Build popup sequence
+        popup_queue = []
+
+        # 1. Task reward popup
+        popup_queue.append(lambda r=result: self.show_task_reward_popup(r))
+
+        # 2. Skill level up popups (one per skill that leveled)
+        for skill_event in result.get("skill_events", []):
+            if skill_event["leveled_up"]:
+                popup_queue.append(
+                    lambda se=skill_event: self.show_skill_level_up_popup(se)
+                )
+
+        # 3. Character level up popups (one per level gained)
+        for level_event in result.get("level_events", []):
+            popup_queue.append(
+                lambda le=level_event: self.show_level_up_popup(le)
+            )
+
+        # 4. Achievement popups (one per achievement)
+        for title in result.get("newly_unlocked", []):
+            popup_queue.append(
+                lambda t=title: self.show_achievement_unlock_popup(t)
+            )
+
+        # 5. Boss spawn alert
+        if result.get("boss"):
+            popup_queue.append(
+                lambda b=result["boss"]: self.show_boss_alert(b)
+            )
+
+        # Show all in sequence
+        self._show_popups_in_sequence(popup_queue)
 
     def delete_task(self, task_id):
         if messagebox.askyesno("Confirm Deletion",
@@ -1275,10 +1580,14 @@ class SkillUI:
             self.show_tasks(self.current_period)
 
     def buy_skill(self, skill_name):
-        if self.engine.buy_skill_boost(skill_name):
+        result = self.engine.buy_skill_boost(skill_name)
+        if result:
             self.refresh_player_ui()
             self.refresh_skill_ui()
             self.show_shop()
+            # Show skill level up popup if it happened
+            if result.get("leveled_up"):
+                self.root.after(300, lambda: self.show_shop_skill_up_popup(result))
         else:
             messagebox.showerror("Error","Not enough Gold")
 
@@ -1396,14 +1705,6 @@ class SkillUI:
     # -------------------------------------------------------------------------
     # NOTIFICATIONS
     # -------------------------------------------------------------------------
-
-    def show_notification(self, title, message):
-        popup = ctk.CTkToplevel(self.root)
-        popup.title(title)
-        popup.geometry("260x110")
-        ctk.CTkLabel(popup, text=title, font=ctk.CTkFont(size=13, weight="bold")).pack(pady=10)
-        ctk.CTkLabel(popup, text=message, font=ctk.CTkFont(size=11)).pack(pady=4)
-        popup.after(2000, popup.destroy)
 
     def show_login_reward(self, reward, on_close=None):
         popup = ctk.CTkToplevel(self.root)
