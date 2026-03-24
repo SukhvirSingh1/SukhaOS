@@ -15,6 +15,16 @@ class GameEngine:
     HP_PER_HEALTH_LEVEL   = 15
     ATTACK_PER_DIFFICULTY = {"easy": 5, "medium": 10, "hard": 15}
     ATTACK_PER_LEVEL_UP   = 20
+    ARMOR_SHOP = [
+        {"key": "leather", "name": "Leather Armor", "cost": 120, "hp_bonus": 25},
+        {"key": "iron", "name": "Iron Armor", "cost": 260, "hp_bonus": 60},
+        {"key": "dragon", "name": "Dragon Armor", "cost": 500, "hp_bonus": 120},
+    ]
+    SWORD_SHOP = [
+        {"key": "iron", "name": "Iron Sword", "cost": 100, "damage_bonus": 4},
+        {"key": "steel", "name": "Steel Sword", "cost": 240, "damage_bonus": 9},
+        {"key": "legend", "name": "Legend Sword", "cost": 450, "damage_bonus": 16},
+    ]
 
     BOSS_ROSTER = {
         "easy": [
@@ -106,9 +116,11 @@ class GameEngine:
     # ATTACK DAMAGE
     # -------------------------------------------------------------------------
 
-    def get_attack_damage(self):
+    def get_attack_damage(self, player=None):
+        if player is None:
+            player = self.db.get_player()
         strength = self.db.get_skill("Strength")
-        return 10 + (strength["level"] - 1) * 2
+        return 10 + (strength["level"] - 1) * 2 + player.get("sword_bonus_damage", 0)
 
     # -------------------------------------------------------------------------
     # BOSS SYSTEM
@@ -175,7 +187,7 @@ class GameEngine:
 
         player["attack_points"] -= 1
 
-        player_damage = self.get_attack_damage()
+        player_damage = self.get_attack_damage(player)
         new_boss_hp   = max(0, boss["hp"] - player_damage)
         self.db.update_boss_hp(boss_id, new_boss_hp)
 
@@ -478,6 +490,72 @@ class GameEngine:
             "old_level":     old_level,
             "new_level":     skill["level"],
             "leveled_up":    skill_leveled_up,
+        }
+
+    def buy_armor(self, armor_key):
+        player = self.db.get_player()
+        armor = next((item for item in self.ARMOR_SHOP if item["key"] == armor_key), None)
+
+        if armor is None:
+            return {"success": False, "reason": "missing"}
+        if player.get("armor_name") == armor["name"]:
+            return {"success": False, "reason": "owned"}
+        if armor["hp_bonus"] <= player.get("armor_bonus_hp", 0):
+            return {"success": False, "reason": "downgrade"}
+        if player["gold"] < armor["cost"]:
+            return {"success": False, "reason": "gold"}
+
+        hp_gain = armor["hp_bonus"] - player.get("armor_bonus_hp", 0)
+        player["gold"] -= armor["cost"]
+        player["gold_spent"] = player.get("gold_spent", 0) + armor["cost"]
+        player["armor_name"] = armor["name"]
+        player["armor_bonus_hp"] = armor["hp_bonus"]
+        player["max_hp"] += hp_gain
+        player["current_hp"] = min(player["current_hp"] + hp_gain, player["max_hp"])
+
+        self.db.update_player(player)
+        self.db.commit()
+        self.check_all_achievements(player=self.db.get_player())
+
+        return {
+            "success": True,
+            "item_type": "armor",
+            "name": armor["name"],
+            "cost": armor["cost"],
+            "hp_gain": hp_gain,
+            "max_hp": player["max_hp"],
+        }
+
+    def buy_sword(self, sword_key):
+        player = self.db.get_player()
+        sword = next((item for item in self.SWORD_SHOP if item["key"] == sword_key), None)
+
+        if sword is None:
+            return {"success": False, "reason": "missing"}
+        if player.get("sword_name") == sword["name"]:
+            return {"success": False, "reason": "owned"}
+        if sword["damage_bonus"] <= player.get("sword_bonus_damage", 0):
+            return {"success": False, "reason": "downgrade"}
+        if player["gold"] < sword["cost"]:
+            return {"success": False, "reason": "gold"}
+
+        damage_gain = sword["damage_bonus"] - player.get("sword_bonus_damage", 0)
+        player["gold"] -= sword["cost"]
+        player["gold_spent"] = player.get("gold_spent", 0) + sword["cost"]
+        player["sword_name"] = sword["name"]
+        player["sword_bonus_damage"] = sword["damage_bonus"]
+
+        self.db.update_player(player)
+        self.db.commit()
+        self.check_all_achievements(player=self.db.get_player())
+
+        return {
+            "success": True,
+            "item_type": "sword",
+            "name": sword["name"],
+            "cost": sword["cost"],
+            "damage_gain": damage_gain,
+            "damage_per_hit": self.get_attack_damage(player),
         }
 
     # -------------------------------------------------------------------------

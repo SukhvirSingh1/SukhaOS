@@ -95,7 +95,7 @@ class Database:
         ''')
 
         # --- Safely add new columns to existing databases ---
-        new_columns = [
+        new_columns =[
             "ALTER TABLE player ADD COLUMN last_login TEXT",
             "ALTER TABLE player ADD COLUMN login_streak INTEGER DEFAULT 0",
             "ALTER TABLE player ADD COLUMN name TEXT DEFAULT 'Hero'",
@@ -105,6 +105,10 @@ class Database:
             "ALTER TABLE player ADD COLUMN total_gold_earned INTEGER DEFAULT 0",
             "ALTER TABLE player ADD COLUMN gold_spent INTEGER DEFAULT 0",
             "ALTER TABLE player ADD COLUMN bosses_defeated INTEGER DEFAULT 0",
+            "ALTER TABLE player ADD COLUMN armor_name TEXT DEFAULT 'Cloth Armor'",
+            "ALTER TABLE player ADD COLUMN armor_bonus_hp INTEGER DEFAULT 0",
+            "ALTER TABLE player ADD COLUMN sword_name TEXT DEFAULT 'Training Sword'",
+            "ALTER TABLE player ADD COLUMN sword_bonus_damage INTEGER DEFAULT 0",
             "ALTER TABLE skill ADD COLUMN is_core INTEGER DEFAULT 0",
             "ALTER TABLE achievement ADD COLUMN category TEXT DEFAULT 'general'",
         ]
@@ -220,6 +224,10 @@ class Database:
             "total_gold_earned": row[10] if len(row) > 10 else 0,
             "gold_spent":        row[11] if len(row) > 11 else 0,
             "bosses_defeated":   row[12] if len(row) > 12 else 0,
+            "armor_name":        row[13] if len(row) > 13 and row[13] else "Cloth Armor",
+            "armor_bonus_hp":    row[14] if len(row) > 14 and row[14] is not None else 0,
+            "sword_name":        row[15] if len(row) > 15 and row[15] else "Training Sword",
+            "sword_bonus_damage": row[16] if len(row) > 16 and row[16] is not None else 0,
         }
 
     def update_player(self, player):
@@ -227,7 +235,8 @@ class Database:
         cursor.execute("""
             UPDATE player
             SET oxp=?, level=?, gold=?, current_hp=?, max_hp=?,
-                attack_points=?, total_gold_earned=?, gold_spent=?, bosses_defeated=?
+                attack_points=?, total_gold_earned=?, gold_spent=?, bosses_defeated=?,
+                armor_name=?, armor_bonus_hp=?, sword_name=?, sword_bonus_damage=?
             WHERE id=?
         """, (
             player["oxp"], player["level"], player["gold"],
@@ -235,6 +244,10 @@ class Database:
             player.get("total_gold_earned", 0),
             player.get("gold_spent", 0),
             player.get("bosses_defeated", 0),
+            player.get("armor_name", "Cloth Armor"),
+            player.get("armor_bonus_hp", 0),
+            player.get("sword_name", "Training Sword"),
+            player.get("sword_bonus_damage", 0),
             player["id"]
         ))
         self.conn.commit()

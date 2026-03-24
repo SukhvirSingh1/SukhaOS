@@ -145,11 +145,17 @@ class SkillUI:
                                         font=ctk.CTkFont(size=11, weight="bold"))
         self.gold_label.grid(row=3, column=0, sticky="w", pady=(0,3))
 
+        self.gear_label = ctk.CTkLabel(stats_frame,
+                                        text="Cloth Armor | Training Sword",
+                                        text_color="#aaaaaa",
+                                        font=ctk.CTkFont(size=10))
+        self.gear_label.grid(row=4, column=0, sticky="w", pady=(0,3))
+
         self.boss_alert_label = ctk.CTkLabel(stats_frame, text="",
                                               text_color="#ff4444",
                                               font=ctk.CTkFont(size=10, weight="bold"),
                                               cursor="hand2")
-        self.boss_alert_label.grid(row=4, column=0, sticky="w", pady=(0,4))
+        self.boss_alert_label.grid(row=5, column=0, sticky="w", pady=(0,4))
 
         ctk.CTkFrame(chrctr_frame, height=2, fg_color="#333355"
                      ).grid(row=2, column=0, columnspan=2, sticky="ew", padx=10, pady=(0,6))
@@ -811,22 +817,30 @@ class SkillUI:
                                   font=ctk.CTkFont(size=12, weight="bold"))
         atk_label.grid(row=6, column=0, sticky="w", padx=20, pady=(0,4))
         ctk.CTkLabel(stats_frame,
-                     text=f"Damage per hit: {self.engine.get_attack_damage()}  |  Cost: 1 ATK point",
+                     text=f"Damage per hit: {self.engine.get_attack_damage(player)}  |  Cost: 1 ATK point",
                      text_color="#ff9900", font=ctk.CTkFont(size=11)
                      ).grid(row=7, column=0, sticky="w", padx=20)
         ctk.CTkLabel(stats_frame,
+                     text=f"Armor: {player.get('armor_name', 'Cloth Armor')} (+{player.get('armor_bonus_hp', 0)} HP)",
+                     text_color="#ff8888", font=ctk.CTkFont(size=11)
+                     ).grid(row=8, column=0, sticky="w", padx=20, pady=(0,4))
+        ctk.CTkLabel(stats_frame,
+                     text=f"Sword: {player.get('sword_name', 'Training Sword')} (+{player.get('sword_bonus_damage', 0)} DMG)",
+                     text_color="#ffbb66", font=ctk.CTkFont(size=11)
+                     ).grid(row=9, column=0, sticky="w", padx=20, pady=(0,4))
+        ctk.CTkLabel(stats_frame,
                      text=f"Boss strikes back: {boss['attack_damage']} HP per hit",
                      text_color="#ff6666", font=ctk.CTkFont(size=11)
-                     ).grid(row=8, column=0, sticky="w", padx=20, pady=(0,4))
+                     ).grid(row=10, column=0, sticky="w", padx=20, pady=(0,4))
         ctk.CTkLabel(stats_frame,
                      text="Near death penalty: -50 gold, -20 ATK points",
                      text_color="#888888", font=ctk.CTkFont(size=10)
-                     ).grid(row=9, column=0, sticky="w", padx=20, pady=(0,12))
+                     ).grid(row=11, column=0, sticky="w", padx=20, pady=(0,12))
 
         combat_log = ctk.CTkLabel(stats_frame, text="Press Attack to fight!",
                                    text_color="#aaaaaa", font=ctk.CTkFont(size=11),
                                    wraplength=340)
-        combat_log.grid(row=10, column=0, sticky="w", padx=20, pady=(0,16))
+        combat_log.grid(row=12, column=0, sticky="w", padx=20, pady=(0,16))
 
         def do_attack():
             current_player = self.db.get_player()
@@ -1097,8 +1111,10 @@ class SkillUI:
             (f"Name: {player['name']}",                           "#E0E0E0"),
             (f"Level: {player['level']}",                         "#E0E0E0"),
             (f"HP: {player['current_hp']} / {player['max_hp']}",  "#ff6666"),
+            (f"Armor: {player.get('armor_name', 'Cloth Armor')} (+{player.get('armor_bonus_hp', 0)} HP)", "#ff8888"),
             (f"⚔️ Attack Points: {player['attack_points']}",      "#ff9900"),
-            (f"⚔️ ATK per hit: {self.engine.get_attack_damage()}", "#ff9900"),
+            (f"Sword: {player.get('sword_name', 'Training Sword')} (+{player.get('sword_bonus_damage', 0)} DMG)", "#ffbb66"),
+            (f"⚔️ ATK per hit: {self.engine.get_attack_damage(player)}", "#ff9900"),
             (f"💰 Gold: {player['gold']}",                        "#ffd700"),
             (f"OXP: {player['oxp']}",                             "#E0E0E0"),
             (f"🏆 Achievements: {unlocked} / {total}",            "#ffd700"),
@@ -1242,11 +1258,71 @@ class SkillUI:
 
     def show_shop(self):
         self.clear_content()
-        ctk.CTkLabel(self.task_container, text="Skill Boost Shop",
+        player = self.db.get_player()
+
+        ctk.CTkLabel(self.task_container, text="Armory and Skill Shop",
                      font=ctk.CTkFont(size=17, weight="bold")
                      ).grid(row=0, column=0, columnspan=2, pady=12)
 
-        row = 1
+        ctk.CTkLabel(self.task_container,
+                     text=f"Equipped: {player.get('armor_name', 'Cloth Armor')}  |  {player.get('sword_name', 'Training Sword')}",
+                     text_color="#aaaaaa",
+                     font=ctk.CTkFont(size=11)
+                     ).grid(row=1, column=0, columnspan=2, pady=(0,10))
+
+        row = 2
+        ctk.CTkLabel(self.task_container, text="Armor",
+                     text_color="#ff8888",
+                     font=ctk.CTkFont(size=13, weight="bold")
+                     ).grid(row=row, column=0, sticky="w", padx=20, pady=(0,4))
+        row += 1
+
+        for armor in self.engine.ARMOR_SHOP:
+            owned = player.get("armor_name") == armor["name"]
+            weaker = armor["hp_bonus"] <= player.get("armor_bonus_hp", 0)
+            ctk.CTkLabel(self.task_container,
+                         text=armor["name"],
+                         font=ctk.CTkFont(size=12)
+                         ).grid(row=row, column=0, sticky="w", padx=20)
+            ctk.CTkButton(
+                self.task_container,
+                text="Equipped" if owned else "Owned Better" if weaker else f"Buy +{armor['hp_bonus']} HP ({armor['cost']} Gold)",
+                height=30,
+                font=ctk.CTkFont(size=11),
+                state="disabled" if owned or weaker else "normal",
+                command=lambda key=armor["key"]: self.buy_armor(key)
+            ).grid(row=row, column=1, padx=10, pady=4)
+            row += 1
+
+        ctk.CTkLabel(self.task_container, text="Swords",
+                     text_color="#ffbb66",
+                     font=ctk.CTkFont(size=13, weight="bold")
+                     ).grid(row=row, column=0, sticky="w", padx=20, pady=(10,4))
+        row += 1
+
+        for sword in self.engine.SWORD_SHOP:
+            owned = player.get("sword_name") == sword["name"]
+            weaker = sword["damage_bonus"] <= player.get("sword_bonus_damage", 0)
+            ctk.CTkLabel(self.task_container,
+                         text=sword["name"],
+                         font=ctk.CTkFont(size=12)
+                         ).grid(row=row, column=0, sticky="w", padx=20)
+            ctk.CTkButton(
+                self.task_container,
+                text="Equipped" if owned else "Owned Better" if weaker else f"Buy +{sword['damage_bonus']} DMG ({sword['cost']} Gold)",
+                height=30,
+                font=ctk.CTkFont(size=11),
+                state="disabled" if owned or weaker else "normal",
+                command=lambda key=sword["key"]: self.buy_sword(key)
+            ).grid(row=row, column=1, padx=10, pady=4)
+            row += 1
+
+        ctk.CTkLabel(self.task_container, text="Skill Boosts",
+                     text_color="#00ff88",
+                     font=ctk.CTkFont(size=13, weight="bold")
+                     ).grid(row=row, column=0, sticky="w", padx=20, pady=(10,4))
+        row += 1
+
         for skill in self.db.get_all_skills():
             ctk.CTkLabel(self.task_container,
                          text=f"{skill['name']} (Lvl {skill['level']})",
@@ -1591,6 +1667,46 @@ class SkillUI:
         else:
             messagebox.showerror("Error","Not enough Gold")
 
+    def buy_armor(self, armor_key):
+        result = self.engine.buy_armor(armor_key)
+        if result.get("success"):
+            self.refresh_player_ui()
+            self.show_shop()
+            messagebox.showinfo(
+                "Armor Equipped",
+                f"{result['name']} equipped.\n+{result['hp_gain']} max HP"
+            )
+            return
+
+        if result.get("reason") == "gold":
+            messagebox.showerror("Error", "Not enough Gold")
+        elif result.get("reason") == "owned":
+            messagebox.showinfo("Armor", "That armor is already equipped.")
+        elif result.get("reason") == "downgrade":
+            messagebox.showinfo("Armor", "You already have better armor equipped.")
+        else:
+            messagebox.showerror("Error", "Unable to equip armor.")
+
+    def buy_sword(self, sword_key):
+        result = self.engine.buy_sword(sword_key)
+        if result.get("success"):
+            self.refresh_player_ui()
+            self.show_shop()
+            messagebox.showinfo(
+                "Sword Equipped",
+                f"{result['name']} equipped.\n+{result['damage_gain']} damage per hit"
+            )
+            return
+
+        if result.get("reason") == "gold":
+            messagebox.showerror("Error", "Not enough Gold")
+        elif result.get("reason") == "owned":
+            messagebox.showinfo("Sword", "That sword is already equipped.")
+        elif result.get("reason") == "downgrade":
+            messagebox.showinfo("Sword", "You already have a stronger sword equipped.")
+        else:
+            messagebox.showerror("Error", "Unable to equip sword.")
+
     # -------------------------------------------------------------------------
     # NAVIGATION
     # -------------------------------------------------------------------------
@@ -1642,8 +1758,13 @@ class SkillUI:
         hp_color = "#ff4444" if hp_ratio > 0.6 else "#ff8800" if hp_ratio > 0.3 else "#ffcc00"
         self.hp_bar.configure(progress_color=hp_color)
 
-        self.attack_label.configure(text=f"⚔️ Attack: {player.get('attack_points',0)}")
+        self.attack_label.configure(
+            text=f"Attack Pts: {player.get('attack_points', 0)} | Hit: {self.engine.get_attack_damage(player)}"
+        )
         self.gold_label.configure(text=f"💰 Gold: {player['gold']}")
+        self.gear_label.configure(
+            text=f"{player.get('armor_name', 'Cloth Armor')} | {player.get('sword_name', 'Training Sword')}"
+        )
 
     # -------------------------------------------------------------------------
     # GRAPHS
