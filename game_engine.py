@@ -122,6 +122,54 @@ class GameEngine:
         strength = self.db.get_skill("Strength")
         return 10 + (strength["level"] - 1) * 2 + player.get("sword_bonus_damage", 0)
 
+    def _apply_level_ups(self, player):
+        level_events = []
+        while True:
+            required = 100 + (player["level"] - 1) * 50
+            if player["oxp"] >= required:
+                player["oxp"] -= required
+                player["level"] += 1
+                player["max_hp"] += self.HP_PER_LEVEL
+                player["current_hp"] = player["max_hp"]
+                player["attack_points"] += self.ATTACK_PER_LEVEL_UP
+                level_events.append({
+                    "new_level": player["level"],
+                    "hp_gained": self.HP_PER_LEVEL,
+                    "atk_gained": self.ATTACK_PER_LEVEL_UP,
+                    "max_hp": player["max_hp"],
+                })
+            else:
+                break
+        return level_events
+
+    def _process_quest_completion(self, task_id, player):
+        quest_events = []
+        level_events = []
+
+        for quest in self.db.get_task_quests(task_id):
+            if quest.get("status") != "Active":
+                continue
+
+            progress = self.db.get_quest_progress(quest["id"])
+            if not progress or not progress["is_complete"]:
+                continue
+
+            self.db.complete_quest(quest["id"])
+
+            player["gold"] += quest.get("gold_reward", 0)
+            player["oxp"] += quest.get("oxp_reward", 0)
+            player["attack_points"] += quest.get("attack_reward", 0)
+            player["total_gold_earned"] = (
+                player.get("total_gold_earned", 0) + quest.get("gold_reward", 0)
+            )
+
+            level_events.extend(self._apply_level_ups(player))
+            quest["status"] = "Completed"
+            quest["progress"] = progress
+            quest_events.append(quest)
+
+        return quest_events, level_events
+
     # -------------------------------------------------------------------------
     # BOSS SYSTEM
     # -------------------------------------------------------------------------
@@ -331,26 +379,7 @@ class GameEngine:
 
         # --- Character level up + track events ---
         old_level    = player["level"]
-        level_events = []
-
-        # Level up manually to capture each level gained
-        while True:
-            required = 100 + (player["level"] - 1) * 50
-            if player["oxp"] >= required:
-                player["oxp"]    -= required
-                player["level"]  += 1
-                player["max_hp"] += self.HP_PER_LEVEL
-                player["current_hp"] = player["max_hp"]
-                player["attack_points"] += self.ATTACK_PER_LEVEL_UP
-
-                level_events.append({
-                    "new_level":  player["level"],
-                    "hp_gained":  self.HP_PER_LEVEL,
-                    "atk_gained": self.ATTACK_PER_LEVEL_UP,
-                    "max_hp":     player["max_hp"],
-                })
-            else:
-                break
+        level_events = self._apply_level_ups(player)
 
         new_level = player["level"]
 
@@ -366,6 +395,12 @@ class GameEngine:
         """, (task["id"], task["title"],
               task.get("difficulty", "Medium"), date.today().isoformat()))
         self.db.conn.commit()
+
+        quest_events, quest_level_events = self._process_quest_completion(task_id, player)
+        if quest_level_events:
+            level_events.extend(quest_level_events)
+        self.db.update_player(player)
+        new_level = player["level"]
 
         # --- Achievements ---
         newly_unlocked = self.check_all_achievements(
@@ -391,6 +426,7 @@ class GameEngine:
             # Events
             "skill_events":    skill_events,
             "level_events":    level_events,
+            "quest_events":    quest_events,
             "newly_unlocked":  newly_unlocked,
             "boss":            spawned_boss,
             # Task info for display

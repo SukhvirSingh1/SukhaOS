@@ -57,6 +57,30 @@ class Database:
                 sxp INTEGER DEFAULT 0
             )
         ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS quest (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT UNIQUE,
+                description TEXT,
+                category TEXT DEFAULT 'general',
+                difficulty TEXT DEFAULT 'medium',
+                progress_mode TEXT DEFAULT 'all_tasks',
+                target_count INTEGER DEFAULT 0,
+                oxp_reward INTEGER DEFAULT 0,
+                gold_reward INTEGER DEFAULT 0,
+                attack_reward INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'Active',
+                created_at TEXT,
+                completed_at TEXT
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS quest_task (
+                quest_id INTEGER,
+                task_id INTEGER,
+                UNIQUE(quest_id, task_id)
+            )
+        ''')
 
         # Achievement table — title is UNIQUE to prevent duplicates
         cursor.execute('''
@@ -381,6 +405,7 @@ class Database:
     def delete_task(self, task_id):
         cursor = self.conn.cursor()
         cursor.execute("DELETE FROM task_reward WHERE task_id=?", (task_id,))
+        cursor.execute("DELETE FROM quest_task WHERE task_id=?", (task_id,))
         cursor.execute("DELETE FROM task WHERE id=?", (task_id,))
         self.conn.commit()
 
@@ -576,6 +601,189 @@ class Database:
             FROM task_history ORDER BY date_completed DESC
         """)
         return cursor.fetchall()
+
+    def get_all_tasks(self):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT id, title, description, period, status, streak, difficulty
+            FROM task
+            ORDER BY period, title
+        """)
+        return [{
+            "id": r[0], "title": r[1], "description": r[2], "period": r[3],
+            "status": r[4], "streak": r[5], "difficulty": r[6]
+        } for r in cursor.fetchall()]
+
+    # -------------------------------------------------------------------------
+    # QUESTS
+    # -------------------------------------------------------------------------
+
+    def add_quest(self, title, description, category, difficulty, progress_mode,
+                  target_count, oxp_reward, gold_reward, attack_reward):
+        from datetime import date
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            INSERT INTO quest(
+                title, description, category, difficulty, progress_mode, target_count,
+                oxp_reward, gold_reward, attack_reward, status, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', ?)
+        """, (
+            title, description, category, difficulty, progress_mode, target_count,
+            oxp_reward, gold_reward, attack_reward, date.today().isoformat()
+        ))
+        self.conn.commit()
+        return cursor.lastrowid
+
+    def update_quest(self, quest_id, title, description, category, difficulty,
+                     progress_mode, target_count, oxp_reward, gold_reward, attack_reward):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            UPDATE quest
+            SET title=?, description=?, category=?, difficulty=?, progress_mode=?,
+                target_count=?, oxp_reward=?, gold_reward=?, attack_reward=?
+            WHERE id=?
+        """, (
+            title, description, category, difficulty, progress_mode,
+            target_count, oxp_reward, gold_reward, attack_reward, quest_id
+        ))
+        self.conn.commit()
+
+    def delete_quest(self, quest_id):
+        cursor = self.conn.cursor()
+        cursor.execute("DELETE FROM quest_task WHERE quest_id=?", (quest_id,))
+        cursor.execute("DELETE FROM quest WHERE id=?", (quest_id,))
+        self.conn.commit()
+
+    def get_quest(self, quest_id):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT id, title, description, category, difficulty, progress_mode,
+                   target_count, oxp_reward, gold_reward, attack_reward,
+                   status, created_at, completed_at
+            FROM quest WHERE id=?
+        """, (quest_id,))
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return {
+            "id": row[0], "title": row[1], "description": row[2],
+            "category": row[3], "difficulty": row[4], "progress_mode": row[5],
+            "target_count": row[6], "oxp_reward": row[7], "gold_reward": row[8],
+            "attack_reward": row[9], "status": row[10], "created_at": row[11],
+            "completed_at": row[12],
+        }
+
+    def get_all_quests(self):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT id, title, description, category, difficulty, progress_mode,
+                   target_count, oxp_reward, gold_reward, attack_reward,
+                   status, created_at, completed_at
+            FROM quest
+            ORDER BY
+                CASE WHEN status='Active' THEN 0 ELSE 1 END,
+                category, title
+        """)
+        return [{
+            "id": r[0], "title": r[1], "description": r[2],
+            "category": r[3], "difficulty": r[4], "progress_mode": r[5],
+            "target_count": r[6], "oxp_reward": r[7], "gold_reward": r[8],
+            "attack_reward": r[9], "status": r[10], "created_at": r[11],
+            "completed_at": r[12],
+        } for r in cursor.fetchall()]
+
+    def set_quest_tasks(self, quest_id, task_ids):
+        cursor = self.conn.cursor()
+        cursor.execute("DELETE FROM quest_task WHERE quest_id=?", (quest_id,))
+        for task_id in task_ids:
+            cursor.execute(
+                "INSERT OR IGNORE INTO quest_task(quest_id, task_id) VALUES(?, ?)",
+                (quest_id, task_id)
+            )
+        self.conn.commit()
+
+    def get_quest_tasks(self, quest_id):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT t.id, t.title, t.description, t.period, t.status, t.streak, t.difficulty
+            FROM quest_task qt
+            JOIN task t ON t.id = qt.task_id
+            WHERE qt.quest_id=?
+            ORDER BY t.period, t.title
+        """, (quest_id,))
+        return [{
+            "id": r[0], "title": r[1], "description": r[2], "period": r[3],
+            "status": r[4], "streak": r[5], "difficulty": r[6]
+        } for r in cursor.fetchall()]
+
+    def get_task_quests(self, task_id):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT q.id, q.title, q.description, q.category, q.difficulty,
+                   q.progress_mode, q.target_count, q.oxp_reward, q.gold_reward,
+                   q.attack_reward, q.status, q.created_at, q.completed_at
+            FROM quest_task qt
+            JOIN quest q ON q.id = qt.quest_id
+            WHERE qt.task_id=?
+            ORDER BY q.title
+        """, (task_id,))
+        return [{
+            "id": r[0], "title": r[1], "description": r[2], "category": r[3],
+            "difficulty": r[4], "progress_mode": r[5], "target_count": r[6],
+            "oxp_reward": r[7], "gold_reward": r[8], "attack_reward": r[9],
+            "status": r[10], "created_at": r[11], "completed_at": r[12],
+        } for r in cursor.fetchall()]
+
+    def get_quest_progress(self, quest_id):
+        quest = self.get_quest(quest_id)
+        if quest is None:
+            return None
+
+        tasks = self.get_quest_tasks(quest_id)
+        linked_tasks = len(tasks)
+
+        if quest["progress_mode"] == "completion_count":
+            cursor = self.conn.cursor()
+            cursor.execute("""
+                SELECT COUNT(*)
+                FROM task_history th
+                JOIN quest_task qt ON qt.task_id = th.task_id
+                WHERE qt.quest_id=? AND th.date_completed >= ?
+            """, (quest_id, quest["created_at"] or "0000-00-00"))
+            progress_value = cursor.fetchone()[0]
+            target_value = max(1, quest["target_count"])
+        else:
+            progress_value = sum(1 for task in tasks if task["status"] == "Completed")
+            target_value = linked_tasks
+
+        is_complete = linked_tasks > 0 and target_value > 0 and progress_value >= target_value
+
+        return {
+            "quest_id": quest_id,
+            "linked_tasks": linked_tasks,
+            "progress_value": progress_value,
+            "target_value": target_value,
+            "is_complete": is_complete,
+            "ratio": min(1, progress_value / target_value) if target_value > 0 else 0,
+        }
+
+    def get_quests_with_progress(self):
+        quests = []
+        for quest in self.get_all_quests():
+            quest["tasks"] = self.get_quest_tasks(quest["id"])
+            quest["progress"] = self.get_quest_progress(quest["id"])
+            quests.append(quest)
+        return quests
+
+    def complete_quest(self, quest_id):
+        from datetime import date
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "UPDATE quest SET status='Completed', completed_at=? WHERE id=?",
+            (date.today().isoformat(), quest_id)
+        )
+        self.conn.commit()
 
     # -------------------------------------------------------------------------
     # UTILITY

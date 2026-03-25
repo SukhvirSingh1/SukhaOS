@@ -18,6 +18,12 @@ PERIOD_REWARDS = {
     "yearly":  {"gold": 500, "oxp": 500, "sxp": 200}
 }
 
+QUEST_DIFFICULTY_MULTIPLIER = {
+    "easy": 0.20,
+    "medium": 0.30,
+    "hard": 0.45,
+}
+
 BOSS_ART = {
     "easy": [
         ("oval",    50, 60, 250, 220, "#4a4a6a"),
@@ -219,6 +225,11 @@ class SkillUI:
                       command=self.show_stats
                       ).grid(row=4, column=0, pady=(0,8))
 
+        ctk.CTkButton(info_frame, text="Quests", height=32,
+                      font=ctk.CTkFont(size=12, weight="bold"),
+                      command=self.show_quests
+                      ).grid(row=6, column=0, pady=(0,8))
+
         ctk.CTkButton(info_frame, text="🏆 Achievements", height=32,
                       font=ctk.CTkFont(size=12, weight="bold"),
                       command=self.show_achievements
@@ -227,7 +238,7 @@ class SkillUI:
         ctk.CTkButton(info_frame, text="Habit Map", height=32,
                       font=ctk.CTkFont(size=12, weight="bold"),
                       command=self.show_heatmap
-                      ).grid(row=6, column=0, pady=(0,12))
+                      ).grid(row=7, column=0, pady=(0,12))
 
         # ── BOTTOM: Task Area ─────────────────────────────────────────────────
         tasks_frame = ctk.CTkFrame(self.root, corner_radius=10)
@@ -365,6 +376,48 @@ class SkillUI:
                       font=ctk.CTkFont(size=13, weight="bold"),
                       command=popup.destroy
                       ).pack(pady=8)
+
+    def show_quest_complete_popup(self, quest):
+        popup = ctk.CTkToplevel(self.root)
+        popup.title("Quest Complete!")
+        popup.geometry("380x320")
+        popup.grab_set()
+        popup.resizable(False, False)
+
+        ctk.CTkLabel(popup, text="Quest Completed!",
+                     text_color="#66ccff",
+                     font=ctk.CTkFont(size=18, weight="bold")
+                     ).pack(pady=(24,6))
+
+        ctk.CTkLabel(popup, text=quest["title"],
+                     text_color="#ffffff",
+                     font=ctk.CTkFont(size=16, weight="bold")
+                     ).pack(pady=(0,6))
+
+        ctk.CTkLabel(popup, text=quest.get("description", ""),
+                     text_color="#aaaaaa",
+                     wraplength=320,
+                     font=ctk.CTkFont(size=11)
+                     ).pack(pady=(0,12))
+
+        rewards_frame = ctk.CTkFrame(popup, fg_color="#1e1e2e", corner_radius=8)
+        rewards_frame.pack(fill="x", padx=20, pady=(0,16))
+
+        reward_lines = [
+            (f"+ {quest.get('oxp_reward', 0)} OXP", "#00ccff"),
+            (f"+ {quest.get('gold_reward', 0)} Gold", "#ffd700"),
+            (f"+ {quest.get('attack_reward', 0)} Attack Points", "#ff9900"),
+        ]
+        for text, color in reward_lines:
+            ctk.CTkLabel(rewards_frame, text=text,
+                         text_color=color,
+                         font=ctk.CTkFont(size=13, weight="bold")
+                         ).pack(anchor="w", padx=16, pady=4)
+
+        ctk.CTkButton(popup, text="Claim", height=36,
+                      font=ctk.CTkFont(size=13, weight="bold"),
+                      command=popup.destroy
+                      ).pack(pady=6)
 
     def show_level_up_popup(self, level_event):
         """
@@ -1052,8 +1105,18 @@ class SkillUI:
                      font=ctk.CTkFont(size=11), text_color="#aaaaaa", anchor="w"
                      ).grid(row=1, column=1, sticky="w", padx=4, pady=(0,4))
 
+        quest_names = [quest["title"] for quest in self.db.get_task_quests(task["id"])]
+        if quest_names:
+            ctk.CTkLabel(
+                card,
+                text=f"Quest: {', '.join(quest_names[:2])}" + ("..." if len(quest_names) > 2 else ""),
+                font=ctk.CTkFont(size=10),
+                text_color="#66ccff",
+                anchor="w"
+            ).grid(row=2, column=1, sticky="w", padx=4, pady=(0,8))
+
         info_frame = ctk.CTkFrame(card, fg_color="transparent")
-        info_frame.grid(row=0, column=2, rowspan=2, padx=8, pady=6)
+        info_frame.grid(row=0, column=2, rowspan=3, padx=8, pady=6)
 
         status_color = "#44ff88" if task["status"] == "Completed" else "#ffaa00"
         status_label = ctk.CTkLabel(info_frame, text=task["status"],
@@ -1145,6 +1208,141 @@ class SkillUI:
             bar = ctk.CTkProgressBar(self.task_container, height=10, corner_radius=4)
             bar.set(skill["xp"] / required if required > 0 else 0)
             bar.grid(row=start_row+index*2+1, column=0, sticky="ew", padx=20, pady=(0,4))
+
+    def show_quests(self):
+        self.clear_content()
+
+        for i in range(12):
+            self.task_container.grid_rowconfigure(i, weight=0)
+            self.task_container.grid_columnconfigure(i, weight=0)
+
+        self.task_container.grid_rowconfigure(3, weight=1)
+        self.task_container.grid_columnconfigure(0, weight=1)
+
+        quests = self.db.get_quests_with_progress()
+        active = [quest for quest in quests if quest["status"] == "Active"]
+        completed = [quest for quest in quests if quest["status"] == "Completed"]
+
+        ctk.CTkLabel(self.task_container, text="Quest Board",
+                     font=ctk.CTkFont(size=18, weight="bold")
+                     ).grid(row=0, column=0, pady=(8,2))
+
+        ctk.CTkLabel(
+            self.task_container,
+            text=f"{len(active)} active  |  {len(completed)} completed",
+            text_color="#aaaaaa",
+            font=ctk.CTkFont(size=11)
+        ).grid(row=1, column=0, pady=(0,4))
+
+        top_actions = ctk.CTkFrame(self.task_container, fg_color="transparent")
+        top_actions.grid(row=2, column=0, pady=(0,8))
+        ctk.CTkButton(top_actions, text="+ Create Quest", height=30,
+                      font=ctk.CTkFont(size=11, weight="bold"),
+                      command=self.open_add_quest_popup
+                      ).pack(side="left", padx=4)
+        ctk.CTkButton(top_actions, text="Back", height=30,
+                      font=ctk.CTkFont(size=11),
+                      command=lambda: self.switch_menu(self.current_period)
+                      ).pack(side="left", padx=4)
+
+        quest_canvas = tk.Canvas(self.task_container, bg="#1e1e2e", highlightthickness=0)
+        quest_canvas.grid(row=3, column=0, sticky="nsew", padx=6)
+
+        quest_scrollbar = ctk.CTkScrollbar(self.task_container, command=quest_canvas.yview)
+        quest_scrollbar.grid(row=3, column=1, sticky="ns")
+        quest_canvas.configure(yscrollcommand=quest_scrollbar.set)
+        self.task_container.grid_columnconfigure(1, weight=0)
+
+        quest_frame = ctk.CTkFrame(quest_canvas, fg_color="transparent")
+        quest_window = quest_canvas.create_window((0,0), window=quest_frame, anchor="nw")
+
+        quest_frame.bind("<Configure>", lambda e: quest_canvas.configure(
+            scrollregion=quest_canvas.bbox("all")
+        ))
+        quest_canvas.bind("<Configure>", lambda e: quest_canvas.itemconfig(
+            quest_window, width=e.width
+        ))
+        quest_canvas.bind("<MouseWheel>", lambda e: quest_canvas.yview_scroll(
+            int(-1*(e.delta/120)), "units"
+        ))
+
+        if not quests:
+            ctk.CTkLabel(quest_frame,
+                         text="No quests yet. Build a bigger life goal and link tasks to it.",
+                         text_color="#aaaaaa",
+                         font=ctk.CTkFont(size=12)
+                         ).pack(pady=30)
+            return
+
+        for quest in quests:
+            self._create_quest_card(quest_frame, quest)
+
+    def _create_quest_card(self, parent, quest):
+        card = ctk.CTkFrame(parent, corner_radius=8)
+        card.pack(fill="x", padx=10, pady=6)
+        card.columnconfigure(0, weight=1)
+
+        progress = quest.get("progress") or {"progress_value": 0, "target_value": 1, "ratio": 0}
+        status_color = "#44ff88" if quest["status"] == "Completed" else "#66ccff"
+        mode_label = "Complete all linked tasks" if quest["progress_mode"] == "all_tasks" else "Reach total task completions"
+
+        ctk.CTkLabel(card, text=quest["title"],
+                     font=ctk.CTkFont(size=14, weight="bold"),
+                     text_color="#ffffff",
+                     anchor="w"
+                     ).grid(row=0, column=0, sticky="w", padx=14, pady=(12,2))
+        ctk.CTkLabel(card, text=quest.get("description", ""),
+                     font=ctk.CTkFont(size=11),
+                     text_color="#aaaaaa",
+                     wraplength=520,
+                     anchor="w",
+                     justify="left"
+                     ).grid(row=1, column=0, sticky="w", padx=14)
+        ctk.CTkLabel(card,
+                     text=f"{quest['category'].title()}  |  {quest['difficulty'].title()}  |  {mode_label}",
+                     text_color=status_color,
+                     font=ctk.CTkFont(size=10, weight="bold")
+                     ).grid(row=2, column=0, sticky="w", padx=14, pady=(4,2))
+        ctk.CTkLabel(card,
+                     text=f"Progress: {progress['progress_value']} / {progress['target_value']}  |  Linked tasks: {progress['linked_tasks']}",
+                     text_color="#cccccc",
+                     font=ctk.CTkFont(size=10)
+                     ).grid(row=3, column=0, sticky="w", padx=14)
+
+        bar = ctk.CTkProgressBar(card, height=10, corner_radius=5,
+                                 progress_color="#66ccff" if quest["status"] == "Active" else "#44ff88")
+        bar.set(progress["ratio"])
+        bar.grid(row=4, column=0, sticky="ew", padx=14, pady=(6,8))
+
+        task_names = [task["title"] for task in quest.get("tasks", [])]
+        ctk.CTkLabel(card,
+                     text="Tasks: " + (", ".join(task_names[:4]) if task_names else "No tasks linked"),
+                     text_color="#888888",
+                     font=ctk.CTkFont(size=10),
+                     anchor="w"
+                     ).grid(row=5, column=0, sticky="w", padx=14, pady=(0,6))
+
+        rewards = (
+            f"Rewards: +{quest.get('oxp_reward', 0)} OXP, "
+            f"+{quest.get('gold_reward', 0)} Gold, "
+            f"+{quest.get('attack_reward', 0)} ATK"
+        )
+        ctk.CTkLabel(card, text=rewards,
+                     text_color="#ffd700",
+                     font=ctk.CTkFont(size=10, weight="bold")
+                     ).grid(row=6, column=0, sticky="w", padx=14, pady=(0,8))
+
+        actions = ctk.CTkFrame(card, fg_color="transparent")
+        actions.grid(row=0, column=1, rowspan=7, padx=10, pady=10, sticky="ne")
+        ctk.CTkButton(actions, text="Edit", width=52, height=26,
+                      font=ctk.CTkFont(size=10),
+                      command=lambda qid=quest["id"]: self.open_edit_quest_popup(qid)
+                      ).pack(pady=2)
+        ctk.CTkButton(actions, text="Delete", width=52, height=26,
+                      font=ctk.CTkFont(size=10),
+                      fg_color="#8b0000", hover_color="#aa0000",
+                      command=lambda qid=quest["id"]: self.delete_quest(qid)
+                      ).pack(pady=2)
 
     def show_achievements(self):
         self.clear_content()
@@ -1561,6 +1759,336 @@ class SkillUI:
                       font=ctk.CTkFont(size=12, weight="bold"),
                       command=save_changes).grid(row=3, column=0, columnspan=2, pady=16)
 
+    def _build_quest_task_picker(self, popup, selected_task_ids=None):
+        selected_task_ids = selected_task_ids or []
+        all_tasks = self.db.get_all_tasks()
+
+        ctk.CTkLabel(popup, text="Linked Tasks:", font=ctk.CTkFont(size=12)
+                     ).grid(row=9, column=0, padx=20, pady=(8,4), sticky="nw")
+
+        picker_frame = ctk.CTkScrollableFrame(popup, width=220, height=160)
+        picker_frame.grid(row=9, column=1, padx=10, pady=(8,4), sticky="nsew")
+
+        task_vars = {}
+        for task in all_tasks:
+            var = tk.IntVar(value=1 if task["id"] in selected_task_ids else 0)
+            label = f"{task['title']} [{task['period']}]"
+            ctk.CTkCheckBox(picker_frame, text=label, variable=var).pack(anchor="w", pady=2)
+            task_vars[task["id"]] = var
+
+        return task_vars
+
+    def _calculate_quest_rewards(self, task_ids, quest_difficulty, progress_mode, target_count):
+        total_oxp = 0
+        total_gold = 0
+        total_sxp = 0
+        total_atk = 0
+
+        for task_id in task_ids:
+            task = self.db.get_task(task_id)
+            if not task:
+                continue
+            total_oxp += task.get("oxp", 0)
+            total_gold += task.get("gold", 0)
+            total_atk += self.engine.ATTACK_PER_DIFFICULTY.get(
+                task.get("difficulty", "medium").lower(), 10
+            )
+            for reward in self.db.get_task_rewards(task_id):
+                total_sxp += reward.get("sxp", 0)
+
+        linked_count = max(1, len(task_ids))
+        difficulty_mult = QUEST_DIFFICULTY_MULTIPLIER.get(quest_difficulty, 0.30)
+        mode_mult = 1.0
+        if progress_mode == "completion_count":
+            mode_mult += min(0.35, max(0, target_count - linked_count) * 0.08)
+
+        quest_oxp = max(10, int(total_oxp * difficulty_mult * mode_mult))
+        quest_gold = max(10, int(total_gold * (difficulty_mult * 0.85) * mode_mult))
+        quest_atk = max(3, int(total_atk * (difficulty_mult * 0.55) * mode_mult))
+
+        return {
+            "oxp_reward": quest_oxp,
+            "gold_reward": quest_gold,
+            "attack_reward": quest_atk,
+            "task_sxp_total": total_sxp,
+            "linked_tasks": len(task_ids),
+        }
+
+    def open_add_quest_popup(self):
+        popup = ctk.CTkToplevel(self.root)
+        popup.title("Create Quest")
+        popup.geometry("560x700")
+        popup.grab_set()
+        popup.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(popup, text="Quest Title:", font=ctk.CTkFont(size=12)
+                     ).grid(row=0, column=0, padx=20, pady=8, sticky="w")
+        title_entry = ctk.CTkEntry(popup, width=260)
+        title_entry.grid(row=0, column=1, padx=10, pady=8, sticky="ew")
+
+        ctk.CTkLabel(popup, text="Description:", font=ctk.CTkFont(size=12)
+                     ).grid(row=1, column=0, padx=20, pady=8, sticky="w")
+        desc_entry = ctk.CTkTextbox(popup, width=260, height=80)
+        desc_entry.grid(row=1, column=1, padx=10, pady=8, sticky="ew")
+
+        ctk.CTkLabel(popup, text="Category:", font=ctk.CTkFont(size=12)
+                     ).grid(row=2, column=0, padx=20, pady=8, sticky="w")
+        category_var = ctk.StringVar(value="discipline")
+        ctk.CTkComboBox(popup, variable=category_var,
+                        values=["discipline", "health", "mind", "career", "general"],
+                        state="readonly").grid(row=2, column=1, padx=10, pady=8, sticky="ew")
+
+        ctk.CTkLabel(popup, text="Difficulty:", font=ctk.CTkFont(size=12)
+                     ).grid(row=3, column=0, padx=20, pady=8, sticky="w")
+        difficulty_var = ctk.StringVar(value="Medium")
+        ctk.CTkComboBox(popup, variable=difficulty_var,
+                        values=["Easy", "Medium", "Hard"],
+                        state="readonly").grid(row=3, column=1, padx=10, pady=8, sticky="ew")
+
+        ctk.CTkLabel(popup, text="Progress Mode:", font=ctk.CTkFont(size=12)
+                     ).grid(row=4, column=0, padx=20, pady=8, sticky="w")
+        mode_var = ctk.StringVar(value="Complete linked tasks")
+        mode_box = ctk.CTkComboBox(
+            popup,
+            variable=mode_var,
+            values=["Complete linked tasks", "Reach total task completions"],
+            state="readonly"
+        )
+        mode_box.grid(row=4, column=1, padx=10, pady=8, sticky="ew")
+
+        ctk.CTkLabel(popup, text="Target Count:", font=ctk.CTkFont(size=12)
+                     ).grid(row=5, column=0, padx=20, pady=8, sticky="w")
+        target_entry = ctk.CTkEntry(popup, width=260)
+        target_entry.insert(0, "1")
+        target_entry.grid(row=5, column=1, padx=10, pady=8, sticky="ew")
+        reward_preview = ctk.CTkLabel(
+            popup,
+            text="Auto rewards will be based on linked tasks and difficulty.",
+            text_color="#aaaaaa",
+            justify="left",
+            anchor="w",
+            wraplength=260,
+            font=ctk.CTkFont(size=11)
+        )
+        reward_preview.grid(row=6, column=0, columnspan=2, padx=20, pady=(8,4), sticky="w")
+
+        task_vars = self._build_quest_task_picker(popup)
+
+        def update_reward_preview(*_args):
+            progress_mode = "all_tasks" if mode_var.get() == "Complete linked tasks" else "completion_count"
+            try:
+                target_count = int(target_entry.get().strip() or "1")
+            except ValueError:
+                target_count = 1
+            selected_tasks = [task_id for task_id, var in task_vars.items() if var.get()]
+            rewards = self._calculate_quest_rewards(
+                selected_tasks, difficulty_var.get().lower(), progress_mode, target_count
+            )
+            reward_preview.configure(
+                text=(
+                    f"Quest bonus: +{rewards['oxp_reward']} OXP, "
+                    f"+{rewards['gold_reward']} Gold, +{rewards['attack_reward']} ATK\n"
+                    f"Linked task SXP in this path: {rewards['task_sxp_total']}\n"
+                    f"Balanced from {rewards['linked_tasks']} linked task(s)."
+                )
+            )
+
+        for var in task_vars.values():
+            var.trace_add("write", update_reward_preview)
+        mode_var.trace_add("write", update_reward_preview)
+        difficulty_var.trace_add("write", update_reward_preview)
+        target_entry.bind("<KeyRelease>", update_reward_preview)
+        update_reward_preview()
+
+        def save_quest():
+            title = title_entry.get().strip()
+            description = desc_entry.get("1.0", "end").strip()
+            difficulty = difficulty_var.get().lower()
+            progress_mode = "all_tasks" if mode_var.get() == "Complete linked tasks" else "completion_count"
+            try:
+                target_count = int(target_entry.get().strip() or "1")
+            except ValueError:
+                messagebox.showerror("Error", "Target count must be a whole number")
+                return
+            selected_tasks = [task_id for task_id, var in task_vars.items() if var.get()]
+
+            if not title:
+                messagebox.showerror("Error", "Quest title is required")
+                return
+            if not description:
+                messagebox.showerror("Error", "Quest description is required")
+                return
+            if not selected_tasks:
+                messagebox.showerror("Error", "Select at least one task for the quest")
+                return
+            if progress_mode == "completion_count" and target_count < 1:
+                messagebox.showerror("Error", "Target count must be at least 1")
+                return
+
+            rewards = self._calculate_quest_rewards(
+                selected_tasks, difficulty, progress_mode, target_count
+            )
+
+            try:
+                quest_id = self.db.add_quest(
+                    title, description, category_var.get(), difficulty,
+                    progress_mode, target_count,
+                    rewards["oxp_reward"], rewards["gold_reward"], rewards["attack_reward"]
+                )
+            except Exception:
+                messagebox.showerror("Error", "Quest title must be unique")
+                return
+            self.db.set_quest_tasks(quest_id, selected_tasks)
+            popup.destroy()
+            self.show_quests()
+
+        ctk.CTkButton(popup, text="Create Quest", height=36,
+                      font=ctk.CTkFont(size=12, weight="bold"),
+                      command=save_quest).grid(row=10, column=0, columnspan=2, pady=18)
+
+    def open_edit_quest_popup(self, quest_id):
+        quest = self.db.get_quest(quest_id)
+        selected_task_ids = [task["id"] for task in self.db.get_quest_tasks(quest_id)]
+
+        popup = ctk.CTkToplevel(self.root)
+        popup.title("Edit Quest")
+        popup.geometry("560x700")
+        popup.grab_set()
+        popup.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(popup, text="Quest Title:", font=ctk.CTkFont(size=12)
+                     ).grid(row=0, column=0, padx=20, pady=8, sticky="w")
+        title_entry = ctk.CTkEntry(popup, width=260)
+        title_entry.insert(0, quest["title"])
+        title_entry.grid(row=0, column=1, padx=10, pady=8, sticky="ew")
+
+        ctk.CTkLabel(popup, text="Description:", font=ctk.CTkFont(size=12)
+                     ).grid(row=1, column=0, padx=20, pady=8, sticky="w")
+        desc_entry = ctk.CTkTextbox(popup, width=260, height=80)
+        desc_entry.insert("1.0", quest.get("description", ""))
+        desc_entry.grid(row=1, column=1, padx=10, pady=8, sticky="ew")
+
+        ctk.CTkLabel(popup, text="Category:", font=ctk.CTkFont(size=12)
+                     ).grid(row=2, column=0, padx=20, pady=8, sticky="w")
+        category_var = ctk.StringVar(value=quest.get("category", "general"))
+        ctk.CTkComboBox(popup, variable=category_var,
+                        values=["discipline", "health", "mind", "career", "general"],
+                        state="readonly").grid(row=2, column=1, padx=10, pady=8, sticky="ew")
+
+        ctk.CTkLabel(popup, text="Difficulty:", font=ctk.CTkFont(size=12)
+                     ).grid(row=3, column=0, padx=20, pady=8, sticky="w")
+        difficulty_var = ctk.StringVar(value=quest.get("difficulty", "medium").capitalize())
+        ctk.CTkComboBox(popup, variable=difficulty_var,
+                        values=["Easy", "Medium", "Hard"],
+                        state="readonly").grid(row=3, column=1, padx=10, pady=8, sticky="ew")
+
+        ctk.CTkLabel(popup, text="Progress Mode:", font=ctk.CTkFont(size=12)
+                     ).grid(row=4, column=0, padx=20, pady=8, sticky="w")
+        mode_label = "Complete linked tasks" if quest.get("progress_mode") == "all_tasks" else "Reach total task completions"
+        mode_var = ctk.StringVar(value=mode_label)
+        ctk.CTkComboBox(
+            popup,
+            variable=mode_var,
+            values=["Complete linked tasks", "Reach total task completions"],
+            state="readonly"
+        ).grid(row=4, column=1, padx=10, pady=8, sticky="ew")
+
+        ctk.CTkLabel(popup, text="Target Count:", font=ctk.CTkFont(size=12)
+                     ).grid(row=5, column=0, padx=20, pady=8, sticky="w")
+        target_entry = ctk.CTkEntry(popup, width=260)
+        target_entry.insert(0, str(max(1, quest.get("target_count", 1))))
+        target_entry.grid(row=5, column=1, padx=10, pady=8, sticky="ew")
+        reward_preview = ctk.CTkLabel(
+            popup,
+            text="Rewards are auto-balanced from linked tasks.",
+            text_color="#aaaaaa",
+            justify="left",
+            anchor="w",
+            wraplength=260,
+            font=ctk.CTkFont(size=11)
+        )
+        reward_preview.grid(row=6, column=0, columnspan=2, padx=20, pady=(8,4), sticky="w")
+
+        task_vars = self._build_quest_task_picker(popup, selected_task_ids)
+
+        def update_reward_preview(*_args):
+            progress_mode = "all_tasks" if mode_var.get() == "Complete linked tasks" else "completion_count"
+            try:
+                target_count = int(target_entry.get().strip() or "1")
+            except ValueError:
+                target_count = 1
+            selected_tasks = [task_id for task_id, var in task_vars.items() if var.get()]
+            rewards = self._calculate_quest_rewards(
+                selected_tasks, difficulty_var.get().lower(), progress_mode, target_count
+            )
+            reward_preview.configure(
+                text=(
+                    f"Quest bonus: +{rewards['oxp_reward']} OXP, "
+                    f"+{rewards['gold_reward']} Gold, +{rewards['attack_reward']} ATK\n"
+                    f"Linked task SXP in this path: {rewards['task_sxp_total']}\n"
+                    f"Balanced from {rewards['linked_tasks']} linked task(s)."
+                )
+            )
+
+        for var in task_vars.values():
+            var.trace_add("write", update_reward_preview)
+        mode_var.trace_add("write", update_reward_preview)
+        difficulty_var.trace_add("write", update_reward_preview)
+        target_entry.bind("<KeyRelease>", update_reward_preview)
+        update_reward_preview()
+
+        def save_quest():
+            title = title_entry.get().strip()
+            description = desc_entry.get("1.0", "end").strip()
+            difficulty = difficulty_var.get().lower()
+            progress_mode = "all_tasks" if mode_var.get() == "Complete linked tasks" else "completion_count"
+            try:
+                target_count = int(target_entry.get().strip() or "1")
+            except ValueError:
+                messagebox.showerror("Error", "Target count must be a whole number")
+                return
+            selected_tasks = [task_id for task_id, var in task_vars.items() if var.get()]
+
+            if not title:
+                messagebox.showerror("Error", "Quest title is required")
+                return
+            if not description:
+                messagebox.showerror("Error", "Quest description is required")
+                return
+            if not selected_tasks:
+                messagebox.showerror("Error", "Select at least one task for the quest")
+                return
+
+            if progress_mode == "completion_count" and target_count < 1:
+                messagebox.showerror("Error", "Target count must be at least 1")
+                return
+
+            rewards = self._calculate_quest_rewards(
+                selected_tasks, difficulty, progress_mode, target_count
+            )
+
+            try:
+                self.db.update_quest(
+                    quest_id, title, description, category_var.get(), difficulty,
+                    progress_mode, target_count,
+                    rewards["oxp_reward"], rewards["gold_reward"], rewards["attack_reward"]
+                )
+            except Exception:
+                messagebox.showerror("Error", "Quest title must be unique")
+                return
+            self.db.set_quest_tasks(quest_id, selected_tasks)
+            popup.destroy()
+            self.show_quests()
+
+        ctk.CTkButton(popup, text="Save Quest", height=36,
+                      font=ctk.CTkFont(size=12, weight="bold"),
+                      command=save_quest).grid(row=10, column=0, columnspan=2, pady=18)
+
+    def delete_quest(self, quest_id):
+        if messagebox.askyesno("Delete Quest", "Delete this quest and unlink its tasks?"):
+            self.db.delete_quest(quest_id)
+            self.show_quests()
+
     def open_add_skill_popup(self):
         popup = ctk.CTkToplevel(self.root)
         popup.title("Add New Skill")
@@ -1640,7 +2168,13 @@ class SkillUI:
                 lambda t=title: self.show_achievement_unlock_popup(t)
             )
 
-        # 5. Boss spawn alert
+        # 5. Quest completion popups
+        for quest in result.get("quest_events", []):
+            popup_queue.append(
+                lambda q=quest: self.show_quest_complete_popup(q)
+            )
+
+        # 6. Boss spawn alert
         if result.get("boss"):
             popup_queue.append(
                 lambda b=result["boss"]: self.show_boss_alert(b)
