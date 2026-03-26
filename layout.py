@@ -196,9 +196,9 @@ class SkillUI:
         info_frame = ctk.CTkFrame(self.root, corner_radius=10)
         info_frame.grid(row=0, column=1, sticky="nsew", padx=(4,8), pady=(8,4))
 
-        for i in range(7):
+        for i in range(9):
             info_frame.rowconfigure(i, weight=0)
-        info_frame.rowconfigure(7, weight=1)
+        info_frame.rowconfigure(9, weight=1)
         info_frame.columnconfigure(0, weight=1)
 
         self.level_label = ctk.CTkLabel(info_frame, text="Hero  |  lvl 1",
@@ -215,15 +215,20 @@ class SkillUI:
                                       font=ctk.CTkFont(size=10))
         self.xp_label.grid(row=2, column=0, pady=(0,12))
 
+        ctk.CTkButton(info_frame, text="Dashboard", height=36,
+                      font=ctk.CTkFont(size=13, weight="bold"),
+                      command=self.show_dashboard
+                      ).grid(row=3, column=0, pady=(0,10))
+
         ctk.CTkButton(info_frame, text="Add Task", height=36,
                       font=ctk.CTkFont(size=13, weight="bold"),
                       command=self.open_add_task_popup
-                      ).grid(row=3, column=0, pady=(0,10))
+                      ).grid(row=4, column=0, pady=(0,10))
 
         ctk.CTkButton(info_frame, text="Stats", height=32,
                       font=ctk.CTkFont(size=12, weight="bold"),
                       command=self.show_stats
-                      ).grid(row=4, column=0, pady=(0,8))
+                      ).grid(row=7, column=0, pady=(0,8))
 
         ctk.CTkButton(info_frame, text="Quests", height=32,
                       font=ctk.CTkFont(size=12, weight="bold"),
@@ -238,7 +243,7 @@ class SkillUI:
         ctk.CTkButton(info_frame, text="Habit Map", height=32,
                       font=ctk.CTkFont(size=12, weight="bold"),
                       command=self.show_heatmap
-                      ).grid(row=7, column=0, pady=(0,12))
+                      ).grid(row=8, column=0, pady=(0,12))
 
         # ── BOTTOM: Task Area ─────────────────────────────────────────────────
         tasks_frame = ctk.CTkFrame(self.root, corner_radius=10)
@@ -284,7 +289,7 @@ class SkillUI:
         self.task_container.rowconfigure(2, weight=1)
         self.task_container.columnconfigure(0, weight=1)
 
-        self.switch_menu("daily")
+        self.show_dashboard()
         self.refresh_player_ui()
         self.refresh_skill_ui()
         self._update_boss_ui()
@@ -1084,6 +1089,195 @@ class SkillUI:
         ctk.CTkButton(self.task_container, text="Show Graph", height=28,
                       font=ctk.CTkFont(size=11), command=self.show_task_graph
                       ).grid(row=3, column=0, pady=6)
+
+    def _get_next_boss_milestone(self, level):
+        candidates = []
+        for divisor, tier in [(10, "easy"), (25, "medium"), (50, "hard")]:
+            next_level = ((level // divisor) + 1) * divisor
+            candidates.append((next_level, tier))
+        return min(candidates, key=lambda item: item[0])
+
+    def _create_dashboard_card(self, parent, title, body, accent, row, column):
+        card = ctk.CTkFrame(parent, corner_radius=10)
+        card.grid(row=row, column=column, sticky="nsew", padx=8, pady=8)
+        card.columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(card, text=title,
+                     text_color=accent,
+                     font=ctk.CTkFont(size=13, weight="bold")
+                     ).grid(row=0, column=0, sticky="w", padx=16, pady=(14,6))
+        ctk.CTkLabel(card, text=body,
+                     justify="left",
+                     anchor="w",
+                     wraplength=280,
+                     text_color="#dddddd",
+                     font=ctk.CTkFont(size=11)
+                     ).grid(row=1, column=0, sticky="w", padx=16, pady=(0,14))
+        return card
+
+    def show_dashboard(self):
+        self.clear_content()
+
+        for i in range(8):
+            self.task_container.grid_rowconfigure(i, weight=0)
+            self.task_container.grid_columnconfigure(i, weight=0)
+
+        self.task_container.grid_columnconfigure(0, weight=1)
+        self.task_container.grid_columnconfigure(1, weight=1)
+        self.task_container.grid_rowconfigure(3, weight=1)
+
+        player = self.db.get_player()
+        daily_tasks = self.db.get_tasks_by_period("daily")
+        pending_daily = [task for task in daily_tasks if task["status"] != "Completed"]
+        completed_daily = len(daily_tasks) - len(pending_daily)
+        next_task = pending_daily[0]["title"] if pending_daily else "All daily tasks are complete"
+        tasks_today = self.db.get_tasks_completed_today()
+        max_streak = self.db.get_max_task_streak()
+        quests = self.db.get_quests_with_progress()
+        active_quests = [quest for quest in quests if quest["status"] == "Active"]
+        active_boss = self.db.get_active_boss()
+        next_boss_level, next_boss_tier = self._get_next_boss_milestone(player["level"])
+        required_oxp = self.get_required_oxp(player["level"])
+
+        ctk.CTkLabel(self.task_container, text="Command Center",
+                     font=ctk.CTkFont(size=20, weight="bold")
+                     ).grid(row=0, column=0, columnspan=2, pady=(6,2))
+        ctk.CTkLabel(
+            self.task_container,
+            text="See what matters today and jump straight into meaningful progress.",
+            text_color="#aaaaaa",
+            font=ctk.CTkFont(size=11)
+        ).grid(row=1, column=0, columnspan=2, pady=(0,8))
+
+        summary_frame = ctk.CTkFrame(self.task_container, fg_color="transparent")
+        summary_frame.grid(row=2, column=0, columnspan=2, sticky="nsew")
+        summary_frame.grid_columnconfigure(0, weight=1)
+        summary_frame.grid_columnconfigure(1, weight=1)
+        summary_frame.grid_columnconfigure(2, weight=1)
+
+        self._create_dashboard_card(
+            summary_frame,
+            "Today's Focus",
+            f"Daily tasks: {completed_daily}/{len(daily_tasks)} done\n"
+            f"Pending now: {len(pending_daily)}\n"
+            f"Next best task: {next_task}",
+            "#66ccff",
+            0, 0
+        )
+        self._create_dashboard_card(
+            summary_frame,
+            "Momentum",
+            f"Login streak: {player.get('login_streak', 0)} day(s)\n"
+            f"Tasks completed today: {tasks_today}\n"
+            f"Best task streak: {max_streak}",
+            "#ff9900",
+            0, 1
+        )
+        boss_body = (
+            f"Active boss: {active_boss['name']} [{active_boss['tier'].title()}]\n"
+            f"HP: {active_boss['hp']} / {active_boss['max_hp']}"
+            if active_boss else
+            f"Next boss milestone: Level {next_boss_level}\n"
+            f"Expected tier: {next_boss_tier.title()}"
+        )
+        self._create_dashboard_card(
+            summary_frame,
+            "Boss Watch",
+            boss_body,
+            "#ff6666",
+            0, 2
+        )
+
+        lower_frame = ctk.CTkFrame(self.task_container, fg_color="transparent")
+        lower_frame.grid(row=3, column=0, columnspan=2, sticky="nsew")
+        lower_frame.grid_columnconfigure(0, weight=3)
+        lower_frame.grid_columnconfigure(1, weight=2)
+        lower_frame.grid_rowconfigure(0, weight=1)
+
+        quest_panel = ctk.CTkFrame(lower_frame, corner_radius=10)
+        quest_panel.grid(row=0, column=0, sticky="nsew", padx=(0,8), pady=(4,0))
+        quest_panel.columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(quest_panel, text="Active Quests",
+                     font=ctk.CTkFont(size=15, weight="bold")
+                     ).grid(row=0, column=0, sticky="w", padx=16, pady=(14,6))
+
+        if not active_quests:
+            ctk.CTkLabel(quest_panel,
+                         text="No active quests yet. Build a bigger mission from your tasks.",
+                         text_color="#aaaaaa",
+                         font=ctk.CTkFont(size=11)
+                         ).grid(row=1, column=0, sticky="w", padx=16, pady=(4,12))
+        else:
+            for index, quest in enumerate(active_quests[:3], start=1):
+                progress = quest.get("progress") or {"progress_value": 0, "target_value": 1, "ratio": 0}
+                block = ctk.CTkFrame(quest_panel, fg_color="#1e1e2e", corner_radius=8)
+                block.grid(row=index, column=0, sticky="ew", padx=14, pady=6)
+                block.columnconfigure(0, weight=1)
+                ctk.CTkLabel(block, text=quest["title"],
+                             font=ctk.CTkFont(size=12, weight="bold")
+                             ).grid(row=0, column=0, sticky="w", padx=12, pady=(10,2))
+                ctk.CTkLabel(
+                    block,
+                    text=f"{progress['progress_value']} / {progress['target_value']}  |  {quest['category'].title()}",
+                    text_color="#aaaaaa",
+                    font=ctk.CTkFont(size=10)
+                ).grid(row=1, column=0, sticky="w", padx=12)
+                bar = ctk.CTkProgressBar(block, height=8, corner_radius=4, progress_color="#66ccff")
+                bar.set(progress["ratio"])
+                bar.grid(row=2, column=0, sticky="ew", padx=12, pady=(6,10))
+
+        side_panel = ctk.CTkFrame(lower_frame, corner_radius=10)
+        side_panel.grid(row=0, column=1, sticky="nsew", padx=(8,0), pady=(4,0))
+        side_panel.columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(side_panel, text="Progress Snapshot",
+                     font=ctk.CTkFont(size=15, weight="bold")
+                     ).grid(row=0, column=0, sticky="w", padx=16, pady=(14,6))
+        snapshot = [
+            f"Level: {player['level']}",
+            f"OXP: {player['oxp']} / {required_oxp}",
+            f"HP: {player['current_hp']} / {player['max_hp']}",
+            f"Attack points: {player['attack_points']}",
+            f"Damage per hit: {self.engine.get_attack_damage(player)}",
+            f"Gear: {player.get('armor_name', 'Cloth Armor')} | {player.get('sword_name', 'Training Sword')}",
+        ]
+        for row_index, line in enumerate(snapshot, start=1):
+            ctk.CTkLabel(side_panel, text=line,
+                         text_color="#dddddd",
+                         font=ctk.CTkFont(size=11)
+                         ).grid(row=row_index, column=0, sticky="w", padx=16, pady=2)
+
+        ctk.CTkLabel(side_panel, text="Quick Actions",
+                     font=ctk.CTkFont(size=14, weight="bold")
+                     ).grid(row=8, column=0, sticky="w", padx=16, pady=(16,8))
+
+        action_frame = ctk.CTkFrame(side_panel, fg_color="transparent")
+        action_frame.grid(row=9, column=0, sticky="ew", padx=12, pady=(0,14))
+        action_frame.grid_columnconfigure(0, weight=1)
+        action_frame.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkButton(action_frame, text="Add Task", height=32,
+                      command=self.open_add_task_popup
+                      ).grid(row=0, column=0, padx=4, pady=4, sticky="ew")
+        ctk.CTkButton(action_frame, text="Daily Tasks", height=32,
+                      command=lambda: self.switch_menu("daily")
+                      ).grid(row=0, column=1, padx=4, pady=4, sticky="ew")
+        ctk.CTkButton(action_frame, text="Quests", height=32,
+                      command=self.show_quests
+                      ).grid(row=1, column=0, padx=4, pady=4, sticky="ew")
+        ctk.CTkButton(action_frame, text="Shop", height=32,
+                      command=self.show_shop
+                      ).grid(row=1, column=1, padx=4, pady=4, sticky="ew")
+        final_action = ctk.CTkButton(
+            action_frame,
+            text="Fight Boss" if active_boss else "Stats",
+            height=32,
+            command=self.open_boss_fight if active_boss else self.show_stats
+        )
+        if active_boss:
+            final_action.configure(fg_color="#8b0000", hover_color="#aa0000")
+        final_action.grid(row=2, column=0, columnspan=2, padx=4, pady=4, sticky="ew")
 
     def _create_task_card(self, parent, task):
         card = ctk.CTkFrame(parent, corner_radius=8)
