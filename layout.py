@@ -24,6 +24,19 @@ QUEST_DIFFICULTY_MULTIPLIER = {
     "hard": 0.45,
 }
 
+UI_COLORS = {
+    "panel": "#1b2230",
+    "panel_alt": "#151b26",
+    "card": "#1f2937",
+    "card_alt": "#243244",
+    "line": "#314158",
+    "text_muted": "#9fb0c6",
+    "accent_blue": "#4fb8ff",
+    "accent_green": "#44d17a",
+    "accent_gold": "#f3c969",
+    "accent_red": "#ff6b6b",
+}
+
 BOSS_ART = {
     "easy": [
         ("oval",    50, 60, 250, 220, "#4a4a6a"),
@@ -217,28 +230,34 @@ class SkillUI:
 
         ctk.CTkButton(info_frame, text="Dashboard", height=36,
                       font=ctk.CTkFont(size=13, weight="bold"),
+                      fg_color=UI_COLORS["accent_blue"],
+                      hover_color="#2e97db",
+                      text_color="#08131f",
                       command=self.show_dashboard
                       ).grid(row=3, column=0, pady=(0,10))
 
         ctk.CTkButton(info_frame, text="Add Task", height=36,
                       font=ctk.CTkFont(size=13, weight="bold"),
+                      fg_color=UI_COLORS["accent_green"],
+                      hover_color="#34b564",
+                      text_color="#0b1a12",
                       command=self.open_add_task_popup
                       ).grid(row=4, column=0, pady=(0,10))
-
-        ctk.CTkButton(info_frame, text="Stats", height=32,
-                      font=ctk.CTkFont(size=12, weight="bold"),
-                      command=self.show_stats
-                      ).grid(row=7, column=0, pady=(0,8))
 
         ctk.CTkButton(info_frame, text="Quests", height=32,
                       font=ctk.CTkFont(size=12, weight="bold"),
                       command=self.show_quests
+                      ).grid(row=5, column=0, pady=(0,8))
+
+        ctk.CTkButton(info_frame, text="Stats", height=32,
+                      font=ctk.CTkFont(size=12, weight="bold"),
+                      command=self.show_stats
                       ).grid(row=6, column=0, pady=(0,8))
 
         ctk.CTkButton(info_frame, text="🏆 Achievements", height=32,
                       font=ctk.CTkFont(size=12, weight="bold"),
                       command=self.show_achievements
-                      ).grid(row=5, column=0, pady=(0,8))
+                      ).grid(row=7, column=0, pady=(0,8))
 
         ctk.CTkButton(info_frame, text="Habit Map", height=32,
                       font=ctk.CTkFont(size=12, weight="bold"),
@@ -1047,14 +1066,43 @@ class SkillUI:
         completed = sum(1 for t in tasks if t["status"] == "Completed")
         total     = len(tasks)
 
-        ctk.CTkLabel(self.task_container,
-                     text=f"{completed} / {total} tasks completed",
-                     font=ctk.CTkFont(size=12, weight="bold")
-                     ).grid(row=0, column=0, pady=(8,2), sticky="ew")
+        header = ctk.CTkFrame(self.task_container, corner_radius=12, fg_color=UI_COLORS["panel"])
+        header.grid(row=0, column=0, columnspan=2, sticky="ew", padx=10, pady=(8,6))
+        header.columnconfigure(0, weight=1)
+        header.columnconfigure(1, weight=0)
+
+        ctk.CTkLabel(header,
+                     text=f"{period.capitalize()} Tasks",
+                     font=ctk.CTkFont(size=16, weight="bold")
+                     ).grid(row=0, column=0, sticky="w", padx=16, pady=(14,2))
+        ctk.CTkLabel(header,
+                     text=f"{completed} / {total} completed",
+                     text_color=UI_COLORS["text_muted"],
+                     font=ctk.CTkFont(size=11)
+                     ).grid(row=1, column=0, sticky="w", padx=16, pady=(0,10))
+
+        action_bar = ctk.CTkFrame(header, fg_color="transparent")
+        action_bar.grid(row=0, column=1, rowspan=2, padx=12, pady=10)
+        ctk.CTkButton(action_bar, text="Dashboard", width=82, height=28,
+                      font=ctk.CTkFont(size=11),
+                      command=self.show_dashboard
+                      ).pack(side="left", padx=4)
+        ctk.CTkButton(action_bar, text="Add Task", width=82, height=28,
+                      font=ctk.CTkFont(size=11, weight="bold"),
+                      fg_color=UI_COLORS["accent_green"],
+                      hover_color="#34b564",
+                      text_color="#0b1a12",
+                      command=self.open_add_task_popup
+                      ).pack(side="left", padx=4)
+        ctk.CTkButton(action_bar, text="Graph", width=70, height=28,
+                      font=ctk.CTkFont(size=11),
+                      command=self.show_task_graph
+                      ).pack(side="left", padx=4)
 
         prog = ctk.CTkProgressBar(self.task_container, height=10, corner_radius=4)
         prog.set(completed / total if total > 0 else 0)
-        prog.grid(row=1, column=0, pady=(0,6), padx=20, sticky="ew")
+        prog.configure(progress_color=UI_COLORS["accent_blue"])
+        prog.grid(row=1, column=0, columnspan=2, pady=(0,8), padx=20, sticky="ew")
 
         tasks_canvas = tk.Canvas(self.task_container, bg="#1e1e2e", highlightthickness=0)
         tasks_canvas.grid(row=2, column=0, sticky="nsew")
@@ -1086,10 +1134,6 @@ class SkillUI:
             for task in tasks:
                 self._create_task_card(cards_frame, task)
 
-        ctk.CTkButton(self.task_container, text="Show Graph", height=28,
-                      font=ctk.CTkFont(size=11), command=self.show_task_graph
-                      ).grid(row=3, column=0, pady=6)
-
     def _get_next_boss_milestone(self, level):
         candidates = []
         for divisor, tier in [(10, "easy"), (25, "medium"), (50, "hard")]:
@@ -1098,21 +1142,24 @@ class SkillUI:
         return min(candidates, key=lambda item: item[0])
 
     def _create_dashboard_card(self, parent, title, body, accent, row, column):
-        card = ctk.CTkFrame(parent, corner_radius=10)
+        card = ctk.CTkFrame(parent, corner_radius=12, fg_color=UI_COLORS["panel"])
         card.grid(row=row, column=column, sticky="nsew", padx=8, pady=8)
         card.columnconfigure(0, weight=1)
+
+        ctk.CTkFrame(card, height=4, fg_color=accent, corner_radius=8
+                     ).grid(row=0, column=0, sticky="ew", padx=14, pady=(14,8))
 
         ctk.CTkLabel(card, text=title,
                      text_color=accent,
                      font=ctk.CTkFont(size=13, weight="bold")
-                     ).grid(row=0, column=0, sticky="w", padx=16, pady=(14,6))
+                     ).grid(row=1, column=0, sticky="w", padx=16, pady=(0,6))
         ctk.CTkLabel(card, text=body,
                      justify="left",
                      anchor="w",
                      wraplength=280,
-                     text_color="#dddddd",
+                     text_color="#dde7f2",
                      font=ctk.CTkFont(size=11)
-                     ).grid(row=1, column=0, sticky="w", padx=16, pady=(0,14))
+                     ).grid(row=2, column=0, sticky="w", padx=16, pady=(0,14))
         return card
 
     def show_dashboard(self):
@@ -1135,6 +1182,10 @@ class SkillUI:
         max_streak = self.db.get_max_task_streak()
         quests = self.db.get_quests_with_progress()
         active_quests = [quest for quest in quests if quest["status"] == "Active"]
+        active_quests.sort(
+            key=lambda quest: quest.get("progress", {}).get("ratio", 0),
+            reverse=True
+        )
         active_boss = self.db.get_active_boss()
         next_boss_level, next_boss_tier = self._get_next_boss_milestone(player["level"])
         required_oxp = self.get_required_oxp(player["level"])
@@ -1150,7 +1201,7 @@ class SkillUI:
         ).grid(row=1, column=0, columnspan=2, pady=(0,8))
 
         summary_frame = ctk.CTkFrame(self.task_container, fg_color="transparent")
-        summary_frame.grid(row=2, column=0, columnspan=2, sticky="nsew")
+        summary_frame.grid(row=2, column=0, columnspan=2, sticky="nsew", padx=4)
         summary_frame.grid_columnconfigure(0, weight=1)
         summary_frame.grid_columnconfigure(1, weight=1)
         summary_frame.grid_columnconfigure(2, weight=1)
@@ -1194,7 +1245,7 @@ class SkillUI:
         lower_frame.grid_columnconfigure(1, weight=2)
         lower_frame.grid_rowconfigure(0, weight=1)
 
-        quest_panel = ctk.CTkFrame(lower_frame, corner_radius=10)
+        quest_panel = ctk.CTkFrame(lower_frame, corner_radius=12, fg_color=UI_COLORS["panel"])
         quest_panel.grid(row=0, column=0, sticky="nsew", padx=(0,8), pady=(4,0))
         quest_panel.columnconfigure(0, weight=1)
 
@@ -1211,7 +1262,7 @@ class SkillUI:
         else:
             for index, quest in enumerate(active_quests[:3], start=1):
                 progress = quest.get("progress") or {"progress_value": 0, "target_value": 1, "ratio": 0}
-                block = ctk.CTkFrame(quest_panel, fg_color="#1e1e2e", corner_radius=8)
+                block = ctk.CTkFrame(quest_panel, fg_color=UI_COLORS["card"], corner_radius=10)
                 block.grid(row=index, column=0, sticky="ew", padx=14, pady=6)
                 block.columnconfigure(0, weight=1)
                 ctk.CTkLabel(block, text=quest["title"],
@@ -1227,7 +1278,7 @@ class SkillUI:
                 bar.set(progress["ratio"])
                 bar.grid(row=2, column=0, sticky="ew", padx=12, pady=(6,10))
 
-        side_panel = ctk.CTkFrame(lower_frame, corner_radius=10)
+        side_panel = ctk.CTkFrame(lower_frame, corner_radius=12, fg_color=UI_COLORS["panel"])
         side_panel.grid(row=0, column=1, sticky="nsew", padx=(8,0), pady=(4,0))
         side_panel.columnconfigure(0, weight=1)
 
@@ -1258,9 +1309,15 @@ class SkillUI:
         action_frame.grid_columnconfigure(1, weight=1)
 
         ctk.CTkButton(action_frame, text="Add Task", height=32,
+                      fg_color=UI_COLORS["accent_green"],
+                      hover_color="#34b564",
+                      text_color="#0b1a12",
                       command=self.open_add_task_popup
                       ).grid(row=0, column=0, padx=4, pady=4, sticky="ew")
         ctk.CTkButton(action_frame, text="Daily Tasks", height=32,
+                      fg_color=UI_COLORS["accent_blue"],
+                      hover_color="#2e97db",
+                      text_color="#08131f",
                       command=lambda: self.switch_menu("daily")
                       ).grid(row=0, column=1, padx=4, pady=4, sticky="ew")
         ctk.CTkButton(action_frame, text="Quests", height=32,
@@ -1280,7 +1337,12 @@ class SkillUI:
         final_action.grid(row=2, column=0, columnspan=2, padx=4, pady=4, sticky="ew")
 
     def _create_task_card(self, parent, task):
-        card = ctk.CTkFrame(parent, corner_radius=8)
+        status_done = task["status"] == "Completed"
+        card = ctk.CTkFrame(
+            parent,
+            corner_radius=12,
+            fg_color=UI_COLORS["panel"] if status_done else UI_COLORS["card"]
+        )
         card.pack(fill="x", padx=10, pady=6)
         card.columnconfigure(1, weight=1)
 
@@ -1295,9 +1357,22 @@ class SkillUI:
                      font=ctk.CTkFont(size=13, weight="bold"), anchor="w"
                      ).grid(row=0, column=1, sticky="w", padx=4, pady=(10,0))
 
+        period_chip = ctk.CTkLabel(
+            card,
+            text=task["period"].upper(),
+            text_color="#091521",
+            fg_color=UI_COLORS["accent_gold"],
+            corner_radius=8,
+            padx=8,
+            pady=2,
+            font=ctk.CTkFont(size=9, weight="bold")
+        )
+        period_chip.grid(row=1, column=1, sticky="w", padx=4, pady=(2, 4))
+
         ctk.CTkLabel(card, text=task["description"],
-                     font=ctk.CTkFont(size=11), text_color="#aaaaaa", anchor="w"
-                     ).grid(row=1, column=1, sticky="w", padx=4, pady=(0,4))
+                     font=ctk.CTkFont(size=11), text_color=UI_COLORS["text_muted"],
+                     anchor="w", wraplength=420, justify="left"
+                     ).grid(row=2, column=1, sticky="w", padx=4, pady=(0,4))
 
         quest_names = [quest["title"] for quest in self.db.get_task_quests(task["id"])]
         if quest_names:
@@ -1307,15 +1382,15 @@ class SkillUI:
                 font=ctk.CTkFont(size=10),
                 text_color="#66ccff",
                 anchor="w"
-            ).grid(row=2, column=1, sticky="w", padx=4, pady=(0,8))
+            ).grid(row=3, column=1, sticky="w", padx=4, pady=(0,8))
 
         info_frame = ctk.CTkFrame(card, fg_color="transparent")
-        info_frame.grid(row=0, column=2, rowspan=3, padx=8, pady=6)
+        info_frame.grid(row=0, column=2, rowspan=4, padx=8, pady=6)
 
         status_color = "#44ff88" if task["status"] == "Completed" else "#ffaa00"
         status_label = ctk.CTkLabel(info_frame, text=task["status"],
                                      text_color=status_color,
-                                     font=ctk.CTkFont(size=10), cursor="hand2")
+                                     font=ctk.CTkFont(size=10, weight="bold"), cursor="hand2")
         status_label.pack(anchor="e")
         status_label.bind("<Button-1>", lambda e, tid=task["id"]: self.complete_task(tid))
 
