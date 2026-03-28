@@ -209,9 +209,9 @@ class SkillUI:
         info_frame = ctk.CTkFrame(self.root, corner_radius=10)
         info_frame.grid(row=0, column=1, sticky="nsew", padx=(4,8), pady=(8,4))
 
-        for i in range(9):
+        for i in range(6):
             info_frame.rowconfigure(i, weight=0)
-        info_frame.rowconfigure(9, weight=1)
+        info_frame.rowconfigure(6, weight=1)
         info_frame.columnconfigure(0, weight=1)
 
         self.level_label = ctk.CTkLabel(info_frame, text="Hero  |  lvl 1",
@@ -228,43 +228,99 @@ class SkillUI:
                                       font=ctk.CTkFont(size=10))
         self.xp_label.grid(row=2, column=0, pady=(0,12))
 
-        ctk.CTkButton(info_frame, text="Dashboard", height=36,
+        controls_frame = ctk.CTkFrame(info_frame, corner_radius=12, fg_color=UI_COLORS["card"])
+        controls_frame.grid(row=3, column=0, sticky="ew", padx=10, pady=(6, 12))
+        controls_frame.grid_columnconfigure(0, weight=1)
+        controls_frame.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkButton(controls_frame, text="Dashboard", height=34,
                       font=ctk.CTkFont(size=13, weight="bold"),
                       fg_color=UI_COLORS["accent_blue"],
                       hover_color="#2e97db",
                       text_color="#08131f",
                       command=self.show_dashboard
-                      ).grid(row=3, column=0, pady=(0,10))
+                      ).grid(row=0, column=0, columnspan=2, sticky="ew", padx=8, pady=(8, 6))
 
-        ctk.CTkButton(info_frame, text="Add Task", height=36,
+        ctk.CTkButton(controls_frame, text="Add Task", height=34,
                       font=ctk.CTkFont(size=13, weight="bold"),
                       fg_color=UI_COLORS["accent_green"],
                       hover_color="#34b564",
                       text_color="#0b1a12",
                       command=self.open_add_task_popup
-                      ).grid(row=4, column=0, pady=(0,10))
+                      ).grid(row=1, column=0, columnspan=2, sticky="ew", padx=8, pady=6)
 
-        ctk.CTkButton(info_frame, text="Quests", height=32,
+        ctk.CTkButton(controls_frame, text="Quests", height=32,
                       font=ctk.CTkFont(size=12, weight="bold"),
                       command=self.show_quests
-                      ).grid(row=5, column=0, pady=(0,8))
+                      ).grid(row=2, column=0, sticky="ew", padx=(8, 4), pady=6)
 
-        ctk.CTkButton(info_frame, text="Stats", height=32,
+        ctk.CTkButton(controls_frame, text="Stats", height=32,
                       font=ctk.CTkFont(size=12, weight="bold"),
                       command=self.show_stats
-                      ).grid(row=6, column=0, pady=(0,8))
+                      ).grid(row=2, column=1, sticky="ew", padx=(4, 8), pady=6)
 
         ctk.CTkButton(info_frame, text="🏆 Achievements", height=32,
                       font=ctk.CTkFont(size=12, weight="bold"),
                       command=self.show_achievements
-                      ).grid(row=7, column=0, pady=(0,8))
+                      ).grid(row=3, column=0, sticky="ew", padx=(8, 4), pady=6)
 
-        ctk.CTkButton(info_frame, text="Habit Map", height=32,
+        ctk.CTkButton(controls_frame, text="Habit Map", height=32,
                       font=ctk.CTkFont(size=12, weight="bold"),
                       command=self.show_heatmap
-                      ).grid(row=8, column=0, pady=(0,12))
+                      ).grid(row=3, column=1, sticky="ew", padx=(4, 8), pady=6)
+
+        ctk.CTkButton(controls_frame, text="Settings", height=32,
+                      font=ctk.CTkFont(size=12, weight="bold"),
+                      command=self.show_settings
+                      ).grid(row=4, column=0, columnspan=2, sticky="ew", padx=8, pady=(6, 8))
 
         # ── BOTTOM: Task Area ─────────────────────────────────────────────────
+        action_panel = ctk.CTkFrame(info_frame, corner_radius=12, fg_color=UI_COLORS["card"])
+        action_panel.grid(row=3, column=0, sticky="ew", padx=10, pady=(6, 12))
+        action_panel.grid_columnconfigure(0, weight=1)
+        action_panel.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkButton(action_panel, text="Dashboard", height=34,
+                      font=ctk.CTkFont(size=13, weight="bold"),
+                      fg_color=UI_COLORS["accent_blue"],
+                      hover_color="#2e97db",
+                      text_color="#08131f",
+                      command=self.show_dashboard
+                      ).grid(row=0, column=0, columnspan=2, sticky="ew", padx=8, pady=(8, 6))
+
+        ctk.CTkButton(action_panel, text="Add Task", height=34,
+                      font=ctk.CTkFont(size=13, weight="bold"),
+                      fg_color=UI_COLORS["accent_green"],
+                      hover_color="#34b564",
+                      text_color="#0b1a12",
+                      command=self.open_add_task_popup
+                      ).grid(row=1, column=0, columnspan=2, sticky="ew", padx=8, pady=6)
+
+        ctk.CTkButton(action_panel, text="Quests", height=32,
+                      font=ctk.CTkFont(size=12, weight="bold"),
+                      command=self.show_quests
+                      ).grid(row=2, column=0, sticky="ew", padx=(8, 4), pady=6)
+
+        ctk.CTkButton(action_panel, text="Stats", height=32,
+                      font=ctk.CTkFont(size=12, weight="bold"),
+                      command=self.show_stats
+                      ).grid(row=2, column=1, sticky="ew", padx=(4, 8), pady=6)
+
+        ctk.CTkButton(action_panel, text="Achievements", height=32,
+                      font=ctk.CTkFont(size=12, weight="bold"),
+                      command=self.show_achievements
+                      ).grid(row=3, column=0, sticky="ew", padx=(8, 4), pady=6)
+
+        ctk.CTkButton(action_panel, text="Habit Map", height=32,
+                      font=ctk.CTkFont(size=12, weight="bold"),
+                      command=self.show_heatmap
+                      ).grid(row=3, column=1, sticky="ew", padx=(4, 8), pady=6)
+
+        ctk.CTkButton(action_panel, text="Settings", height=32,
+                      font=ctk.CTkFont(size=12, weight="bold"),
+                      command=self.show_settings
+                      ).grid(row=4, column=0, columnspan=2, sticky="ew", padx=8, pady=(6, 8))
+
         tasks_frame = ctk.CTkFrame(self.root, corner_radius=10)
         tasks_frame.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=8, pady=(4,8))
         tasks_frame.rowconfigure(0, weight=1)
@@ -1546,6 +1602,123 @@ class SkillUI:
         for quest in quests:
             self._create_quest_card(quest_frame, quest)
 
+    def show_settings(self):
+        self.clear_content()
+
+        for i in range(12):
+            self.task_container.grid_rowconfigure(i, weight=0)
+            self.task_container.grid_columnconfigure(i, weight=0)
+
+        self.task_container.grid_columnconfigure(0, weight=1)
+        self.task_container.grid_rowconfigure(2, weight=1)
+
+        player = self.db.get_player()
+
+        ctk.CTkLabel(self.task_container, text="Settings",
+                     font=ctk.CTkFont(size=18, weight="bold")
+                     ).grid(row=0, column=0, sticky="w", padx=12, pady=(8,2))
+        ctk.CTkLabel(
+            self.task_container,
+            text="Manage your profile, protect your progress, and reset safely when needed.",
+            text_color=UI_COLORS["text_muted"],
+            font=ctk.CTkFont(size=11)
+        ).grid(row=1, column=0, sticky="w", padx=12, pady=(0,10))
+
+        ctk.CTkButton(self.task_container, text="Back to Dashboard", height=30,
+                      command=self.show_dashboard
+                      ).grid(row=0, column=0, sticky="e", padx=12, pady=(8,2))
+
+        settings_scroll = ctk.CTkScrollableFrame(
+            self.task_container,
+            fg_color="transparent",
+            corner_radius=0
+        )
+        settings_scroll.grid(row=2, column=0, sticky="nsew", padx=2, pady=(0, 4))
+        settings_scroll.grid_columnconfigure(0, weight=1)
+        settings_scroll.grid_columnconfigure(1, weight=1)
+
+        profile_card = ctk.CTkFrame(settings_scroll, corner_radius=12, fg_color=UI_COLORS["panel"])
+        profile_card.grid(row=0, column=0, sticky="nsew", padx=(8,4), pady=6)
+        profile_card.columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(profile_card, text="Profile",
+                     font=ctk.CTkFont(size=15, weight="bold"),
+                     text_color=UI_COLORS["accent_blue"]
+                     ).grid(row=0, column=0, sticky="w", padx=16, pady=(14,6))
+        ctk.CTkLabel(profile_card,
+                     text=f"Current name: {player.get('name', 'Hero')}\nLevel: {player['level']}  |  Gold: {player['gold']}",
+                     justify="left",
+                     text_color="#dde7f2",
+                     font=ctk.CTkFont(size=11)
+                     ).grid(row=1, column=0, sticky="w", padx=16, pady=(0,12))
+        ctk.CTkButton(profile_card, text="Change Name", height=32,
+                      command=self.open_change_name_popup
+                      ).grid(row=2, column=0, sticky="w", padx=16, pady=(0,16))
+
+        safety_card = ctk.CTkFrame(settings_scroll, corner_radius=12, fg_color=UI_COLORS["panel"])
+        safety_card.grid(row=0, column=1, sticky="nsew", padx=(4,8), pady=6)
+        safety_card.columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(safety_card, text="Save Safety",
+                     font=ctk.CTkFont(size=15, weight="bold"),
+                     text_color=UI_COLORS["accent_green"]
+                     ).grid(row=0, column=0, sticky="w", padx=16, pady=(14,6))
+        ctk.CTkLabel(
+            safety_card,
+            text="Create a database backup before major changes, or export a readable progress snapshot.",
+            wraplength=320,
+            justify="left",
+            text_color="#dde7f2",
+            font=ctk.CTkFont(size=11)
+        ).grid(row=1, column=0, sticky="w", padx=16, pady=(0,12))
+
+        backup_actions = ctk.CTkFrame(safety_card, fg_color="transparent")
+        backup_actions.grid(row=2, column=0, sticky="ew", padx=12, pady=(0,16))
+        backup_actions.grid_columnconfigure(0, weight=1)
+        backup_actions.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkButton(backup_actions, text="Backup Database", height=34,
+                      fg_color=UI_COLORS["accent_green"],
+                      hover_color="#34b564",
+                      text_color="#0b1a12",
+                      command=self.create_backup
+                      ).grid(row=0, column=0, padx=4, pady=4, sticky="ew")
+        ctk.CTkButton(backup_actions, text="Export Progress", height=34,
+                      fg_color=UI_COLORS["accent_blue"],
+                      hover_color="#2e97db",
+                      text_color="#08131f",
+                      command=self.export_progress
+                      ).grid(row=0, column=1, padx=4, pady=4, sticky="ew")
+
+        reset_card = ctk.CTkFrame(settings_scroll, corner_radius=12, fg_color=UI_COLORS["panel"])
+        reset_card.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=8, pady=(6,8))
+        reset_card.columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(reset_card, text="Danger Zone",
+                     font=ctk.CTkFont(size=15, weight="bold"),
+                     text_color=UI_COLORS["accent_red"]
+                     ).grid(row=0, column=0, sticky="w", padx=16, pady=(14,6))
+        ctk.CTkLabel(
+            reset_card,
+            text="Reset will wipe tasks, quests, bosses, history, skills, and player progress. Make a backup first if you might want this save later.",
+            wraplength=760,
+            justify="left",
+            text_color="#dde7f2",
+            font=ctk.CTkFont(size=11)
+        ).grid(row=1, column=0, sticky="w", padx=16, pady=(0,12))
+
+        reset_actions = ctk.CTkFrame(reset_card, fg_color="transparent")
+        reset_actions.grid(row=2, column=0, sticky="ew", padx=12, pady=(0,16))
+        reset_actions.grid_columnconfigure(0, weight=1)
+        reset_actions.grid_columnconfigure(1, weight=1)
+        ctk.CTkButton(reset_actions, text="Reset All Progress", height=34,
+                      fg_color="#8b0000", hover_color="#aa0000",
+                      command=self.reset_all_progress
+                      ).grid(row=0, column=0, sticky="ew", padx=4)
+        ctk.CTkButton(reset_actions, text="Back to Dashboard", height=34,
+                      command=self.show_dashboard
+                      ).grid(row=0, column=1, sticky="ew", padx=4)
+
     def _create_quest_card(self, parent, quest):
         card = ctk.CTkFrame(parent, corner_radius=8)
         card.pack(fill="x", padx=10, pady=6)
@@ -1911,6 +2084,47 @@ class SkillUI:
         ctk.CTkButton(popup, text="Start Game!", height=38,
                       text_color="#ffcc00", font=ctk.CTkFont(size=13, weight="bold"),
                       command=save_name).pack(pady=6)
+
+    def open_change_name_popup(self):
+        player = self.db.get_player()
+        popup = ctk.CTkToplevel(self.root)
+        popup.title("Change Name")
+        popup.geometry("380x220")
+        popup.grab_set()
+        popup.resizable(False, False)
+
+        ctk.CTkLabel(popup, text="Update Character Name",
+                     text_color=UI_COLORS["accent_blue"],
+                     font=ctk.CTkFont(size=16, weight="bold")
+                     ).pack(pady=(24,6))
+        ctk.CTkLabel(popup, text="Choose a short name for your profile.",
+                     text_color=UI_COLORS["text_muted"],
+                     font=ctk.CTkFont(size=11)
+                     ).pack(pady=(0,10))
+
+        name_entry = ctk.CTkEntry(popup, width=220, height=36,
+                                   font=ctk.CTkFont(size=13), justify="center")
+        name_entry.insert(0, player.get("name", "Hero"))
+        name_entry.pack(pady=8)
+        name_entry.focus()
+
+        def save_name():
+            name = name_entry.get().strip()
+            if not name:
+                messagebox.showerror("Error", "Please enter a name")
+                return
+            if len(name) > 20:
+                messagebox.showerror("Error", "Name too long (max 20 chars)")
+                return
+            self.db.set_player_name(name)
+            self.refresh_player_ui()
+            popup.destroy()
+            self.show_settings()
+
+        name_entry.bind("<Return>", lambda e: save_name())
+        ctk.CTkButton(popup, text="Save Name", height=36,
+                      font=ctk.CTkFont(size=12, weight="bold"),
+                      command=save_name).pack(pady=10)
 
     def open_add_task_popup(self):
         popup = ctk.CTkToplevel(self.root)
@@ -2357,6 +2571,45 @@ class SkillUI:
         if messagebox.askyesno("Delete Quest", "Delete this quest and unlink its tasks?"):
             self.db.delete_quest(quest_id)
             self.show_quests()
+
+    def create_backup(self):
+        try:
+            backup_path = self.db.backup_database()
+            messagebox.showinfo("Backup Created", f"Database backup saved to:\n{backup_path}")
+        except Exception as exc:
+            messagebox.showerror("Backup Failed", f"Could not create backup.\n\n{exc}")
+
+    def export_progress(self):
+        try:
+            export_path = self.db.export_progress_summary()
+            messagebox.showinfo("Export Complete", f"Progress summary exported to:\n{export_path}")
+        except Exception as exc:
+            messagebox.showerror("Export Failed", f"Could not export progress.\n\n{exc}")
+
+    def reset_all_progress(self):
+        confirm = messagebox.askyesno(
+            "Reset All Progress",
+            "This will permanently erase your current progress.\n\nDo you want to continue?"
+        )
+        if not confirm:
+            return
+
+        second_confirm = messagebox.askyesno(
+            "Final Confirmation",
+            "Last check: this reset deletes tasks, quests, bosses, history, and progression.\n\nReset everything now?"
+        )
+        if not second_confirm:
+            return
+
+        try:
+            self.db.reset_all_progress()
+            self.refresh_player_ui()
+            self.refresh_skill_ui()
+            self._update_boss_ui()
+            self.show_dashboard()
+            messagebox.showinfo("Reset Complete", "All progress has been reset to a fresh start.")
+        except Exception as exc:
+            messagebox.showerror("Reset Failed", f"Could not reset progress.\n\n{exc}")
 
     def open_add_skill_popup(self):
         popup = ctk.CTkToplevel(self.root)

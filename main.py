@@ -67,6 +67,6 @@ class SukhaOS:
 
 
 if __name__ == "__main__":
-    root = ctk.CTk()   # CTk instead of tk.Tk
+    root = ctk.CTk()
     app = SukhaOS(root)
     root.mainloop()

@@ -5,10 +5,15 @@ Handles all SQLite database operations for SukhaOS.
 """
 
 import sqlite3
+import json
+import os
+import shutil
+from datetime import datetime
 
 
 class Database:
     def __init__(self, db_name="sukhaos.db"):
+        self.db_name = db_name
         self.conn = sqlite3.connect(db_name)
         self.create_tables()
 
@@ -791,6 +796,54 @@ class Database:
 
     def commit(self):
         self.conn.commit()
+
+    def backup_database(self, backup_dir="backups"):
+        self.conn.commit()
+        os.makedirs(backup_dir, exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_name = f"sukhaos_backup_{timestamp}.db"
+        backup_path = os.path.abspath(os.path.join(backup_dir, backup_name))
+        shutil.copy2(self.db_name, backup_path)
+        return backup_path
+
+    def export_progress_summary(self, export_dir="exports"):
+        os.makedirs(export_dir, exist_ok=True)
+
+        player = self.get_player()
+        unlocked, total = self.get_achievement_count()
+        quests = self.get_quests_with_progress()
+        active_boss = self.get_active_boss()
+
+        summary = {
+            "exported_at": datetime.now().isoformat(timespec="seconds"),
+            "player": player,
+            "achievements": {"unlocked": unlocked, "total": total},
+            "skills": self.get_all_skills(),
+            "tasks": self.get_all_tasks(),
+            "quests": quests,
+            "boss": active_boss,
+            "task_history": self.get_task_history(),
+        }
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        export_name = f"sukhaos_progress_{timestamp}.json"
+        export_path = os.path.abspath(os.path.join(export_dir, export_name))
+        with open(export_path, "w", encoding="utf-8") as handle:
+            json.dump(summary, handle, indent=2)
+        return export_path
+
+    def reset_all_progress(self):
+        cursor = self.conn.cursor()
+        tables = [
+            "task_reward", "task_history", "quest_task", "quest",
+            "boss", "task", "skill", "achievement", "player"
+        ]
+        for table in tables:
+            cursor.execute(f"DELETE FROM {table}")
+        cursor.execute("DELETE FROM sqlite_sequence")
+        self.conn.commit()
+        self.create_tables()
 
     def clean_duplicate_achievements(self):
         """
