@@ -228,98 +228,7 @@ class SkillUI:
                                       font=ctk.CTkFont(size=10))
         self.xp_label.grid(row=2, column=0, pady=(0,12))
 
-        controls_frame = ctk.CTkFrame(info_frame, corner_radius=12, fg_color=UI_COLORS["card"])
-        controls_frame.grid(row=3, column=0, sticky="ew", padx=10, pady=(6, 12))
-        controls_frame.grid_columnconfigure(0, weight=1)
-        controls_frame.grid_columnconfigure(1, weight=1)
-
-        ctk.CTkButton(controls_frame, text="Dashboard", height=34,
-                      font=ctk.CTkFont(size=13, weight="bold"),
-                      fg_color=UI_COLORS["accent_blue"],
-                      hover_color="#2e97db",
-                      text_color="#08131f",
-                      command=self.show_dashboard
-                      ).grid(row=0, column=0, columnspan=2, sticky="ew", padx=8, pady=(8, 6))
-
-        ctk.CTkButton(controls_frame, text="Add Task", height=34,
-                      font=ctk.CTkFont(size=13, weight="bold"),
-                      fg_color=UI_COLORS["accent_green"],
-                      hover_color="#34b564",
-                      text_color="#0b1a12",
-                      command=self.open_add_task_popup
-                      ).grid(row=1, column=0, columnspan=2, sticky="ew", padx=8, pady=6)
-
-        ctk.CTkButton(controls_frame, text="Quests", height=32,
-                      font=ctk.CTkFont(size=12, weight="bold"),
-                      command=self.show_quests
-                      ).grid(row=2, column=0, sticky="ew", padx=(8, 4), pady=6)
-
-        ctk.CTkButton(controls_frame, text="Stats", height=32,
-                      font=ctk.CTkFont(size=12, weight="bold"),
-                      command=self.show_stats
-                      ).grid(row=2, column=1, sticky="ew", padx=(4, 8), pady=6)
-
-        ctk.CTkButton(info_frame, text="🏆 Achievements", height=32,
-                      font=ctk.CTkFont(size=12, weight="bold"),
-                      command=self.show_achievements
-                      ).grid(row=3, column=0, sticky="ew", padx=(8, 4), pady=6)
-
-        ctk.CTkButton(controls_frame, text="Habit Map", height=32,
-                      font=ctk.CTkFont(size=12, weight="bold"),
-                      command=self.show_heatmap
-                      ).grid(row=3, column=1, sticky="ew", padx=(4, 8), pady=6)
-
-        ctk.CTkButton(controls_frame, text="Settings", height=32,
-                      font=ctk.CTkFont(size=12, weight="bold"),
-                      command=self.show_settings
-                      ).grid(row=4, column=0, columnspan=2, sticky="ew", padx=8, pady=(6, 8))
-
-        # ── BOTTOM: Task Area ─────────────────────────────────────────────────
-        action_panel = ctk.CTkFrame(info_frame, corner_radius=12, fg_color=UI_COLORS["card"])
-        action_panel.grid(row=3, column=0, sticky="ew", padx=10, pady=(6, 12))
-        action_panel.grid_columnconfigure(0, weight=1)
-        action_panel.grid_columnconfigure(1, weight=1)
-
-        ctk.CTkButton(action_panel, text="Dashboard", height=34,
-                      font=ctk.CTkFont(size=13, weight="bold"),
-                      fg_color=UI_COLORS["accent_blue"],
-                      hover_color="#2e97db",
-                      text_color="#08131f",
-                      command=self.show_dashboard
-                      ).grid(row=0, column=0, columnspan=2, sticky="ew", padx=8, pady=(8, 6))
-
-        ctk.CTkButton(action_panel, text="Add Task", height=34,
-                      font=ctk.CTkFont(size=13, weight="bold"),
-                      fg_color=UI_COLORS["accent_green"],
-                      hover_color="#34b564",
-                      text_color="#0b1a12",
-                      command=self.open_add_task_popup
-                      ).grid(row=1, column=0, columnspan=2, sticky="ew", padx=8, pady=6)
-
-        ctk.CTkButton(action_panel, text="Quests", height=32,
-                      font=ctk.CTkFont(size=12, weight="bold"),
-                      command=self.show_quests
-                      ).grid(row=2, column=0, sticky="ew", padx=(8, 4), pady=6)
-
-        ctk.CTkButton(action_panel, text="Stats", height=32,
-                      font=ctk.CTkFont(size=12, weight="bold"),
-                      command=self.show_stats
-                      ).grid(row=2, column=1, sticky="ew", padx=(4, 8), pady=6)
-
-        ctk.CTkButton(action_panel, text="Achievements", height=32,
-                      font=ctk.CTkFont(size=12, weight="bold"),
-                      command=self.show_achievements
-                      ).grid(row=3, column=0, sticky="ew", padx=(8, 4), pady=6)
-
-        ctk.CTkButton(action_panel, text="Habit Map", height=32,
-                      font=ctk.CTkFont(size=12, weight="bold"),
-                      command=self.show_heatmap
-                      ).grid(row=3, column=1, sticky="ew", padx=(4, 8), pady=6)
-
-        ctk.CTkButton(action_panel, text="Settings", height=32,
-                      font=ctk.CTkFont(size=12, weight="bold"),
-                      command=self.show_settings
-                      ).grid(row=4, column=0, columnspan=2, sticky="ew", padx=8, pady=(6, 8))
+        self._build_sidebar_actions(info_frame)
 
         tasks_frame = ctk.CTkFrame(self.root, corner_radius=10)
         tasks_frame.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=8, pady=(4,8))
@@ -369,6 +278,53 @@ class SkillUI:
         self.refresh_skill_ui()
         self._update_boss_ui()
 
+    def _build_sidebar_actions(self, parent):
+        action_panel = ctk.CTkFrame(parent, corner_radius=12, fg_color=UI_COLORS["card"])
+        action_panel.grid(row=3, column=0, sticky="ew", padx=10, pady=(6, 12))
+        action_panel.grid_columnconfigure(0, weight=1)
+        action_panel.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkButton(action_panel, text="Dashboard", height=34,
+                      font=ctk.CTkFont(size=13, weight="bold"),
+                      fg_color=UI_COLORS["accent_blue"],
+                      hover_color="#2e97db",
+                      text_color="#08131f",
+                      command=self.show_dashboard
+                      ).grid(row=0, column=0, columnspan=2, sticky="ew", padx=8, pady=(8, 6))
+
+        ctk.CTkButton(action_panel, text="Add Task", height=34,
+                      font=ctk.CTkFont(size=13, weight="bold"),
+                      fg_color=UI_COLORS["accent_green"],
+                      hover_color="#34b564",
+                      text_color="#0b1a12",
+                      command=self.open_add_task_popup
+                      ).grid(row=1, column=0, columnspan=2, sticky="ew", padx=8, pady=6)
+
+        ctk.CTkButton(action_panel, text="Quests", height=32,
+                      font=ctk.CTkFont(size=12, weight="bold"),
+                      command=self.show_quests
+                      ).grid(row=2, column=0, sticky="ew", padx=(8, 4), pady=6)
+
+        ctk.CTkButton(action_panel, text="Stats", height=32,
+                      font=ctk.CTkFont(size=12, weight="bold"),
+                      command=self.show_stats
+                      ).grid(row=2, column=1, sticky="ew", padx=(4, 8), pady=6)
+
+        ctk.CTkButton(action_panel, text="Achievements", height=32,
+                      font=ctk.CTkFont(size=12, weight="bold"),
+                      command=self.show_achievements
+                      ).grid(row=3, column=0, sticky="ew", padx=(8, 4), pady=6)
+
+        ctk.CTkButton(action_panel, text="Habit Map", height=32,
+                      font=ctk.CTkFont(size=12, weight="bold"),
+                      command=self.show_heatmap
+                      ).grid(row=3, column=1, sticky="ew", padx=(4, 8), pady=6)
+
+        ctk.CTkButton(action_panel, text="Settings", height=32,
+                      font=ctk.CTkFont(size=12, weight="bold"),
+                      command=self.show_settings
+                      ).grid(row=4, column=0, columnspan=2, sticky="ew", padx=8, pady=(6, 8))
+
     # -------------------------------------------------------------------------
     # RICH REWARD POPUPS
     # -------------------------------------------------------------------------
@@ -380,45 +336,52 @@ class SkillUI:
         """
         popup = ctk.CTkToplevel(self.root)
         popup.title("Task Complete!")
-        popup.geometry("380x420")
+        popup.geometry("420x520")
         popup.grab_set()
         popup.resizable(False, False)
+        popup.grid_rowconfigure(0, weight=1)
+        popup.grid_rowconfigure(1, weight=0)
+        popup.grid_columnconfigure(0, weight=1)
 
         diff_colors = {"easy":"#00cc66","medium":"#ffcc00","hard":"#ff4444"}
-        diff_color  = diff_colors.get(result["task_difficulty"].lower(), "#aaaaaa")
+        diff_color = diff_colors.get(result["task_difficulty"].lower(), "#aaaaaa")
 
-        # Header
-        ctk.CTkLabel(popup, text="✅  Task Completed!",
+        content_frame = ctk.CTkScrollableFrame(
+            popup,
+            fg_color="transparent",
+            corner_radius=0
+        )
+        content_frame.grid(row=0, column=0, sticky="nsew", padx=6, pady=(6, 0))
+
+        ctk.CTkLabel(content_frame, text="Task Completed!",
                      text_color="#44ff88",
                      font=ctk.CTkFont(size=16, weight="bold")
-                     ).pack(pady=(20,4))
+                     ).pack(pady=(18, 4))
 
-        ctk.CTkLabel(popup, text=result["task_title"],
+        ctk.CTkLabel(content_frame, text=result["task_title"],
                      text_color="#E0E0E0",
                      font=ctk.CTkFont(size=13)
-                     ).pack(pady=(0,4))
+                     ).pack(pady=(0, 4))
 
-        ctk.CTkLabel(popup,
-                     text=f"{result['task_period'].capitalize()}  •  {result['task_difficulty']}",
+        ctk.CTkLabel(content_frame,
+                     text=f"{result['task_period'].capitalize()}  |  {result['task_difficulty']}",
                      text_color=diff_color,
                      font=ctk.CTkFont(size=11)
-                     ).pack(pady=(0,12))
+                     ).pack(pady=(0, 12))
 
-        # Divider
-        ctk.CTkFrame(popup, height=1, fg_color="#333355").pack(fill="x", padx=20, pady=(0,12))
+        ctk.CTkFrame(content_frame, height=1, fg_color="#333355").pack(fill="x", padx=20, pady=(0, 12))
 
-        # Rewards section
-        ctk.CTkLabel(popup, text="Rewards",
+        ctk.CTkLabel(content_frame, text="Rewards",
                      text_color="#aaaaaa",
                      font=ctk.CTkFont(size=11, weight="bold")
                      ).pack(anchor="w", padx=24)
 
-        rewards_frame = ctk.CTkFrame(popup, fg_color="#1e1e2e", corner_radius=8)
-        rewards_frame.pack(fill="x", padx=20, pady=(4,12))
+        rewards_frame = ctk.CTkFrame(content_frame, fg_color="#1e1e2e", corner_radius=8)
+        rewards_frame.pack(fill="x", padx=20, pady=(4, 12))
 
         rewards_data = [
-            (f"+ {result['oxp_earned']} OXP",    "#00ccff"),
-            (f"+ {result['gold_earned']} Gold",   "#ffd700"),
+            (f"+ {result['oxp_earned']} OXP", "#00ccff"),
+            (f"+ {result['gold_earned']} Gold", "#ffd700"),
             (f"+ {result['atk_earned']} ATK pts", "#ff9900"),
         ]
         for text, color in rewards_data:
@@ -427,35 +390,48 @@ class SkillUI:
                          font=ctk.CTkFont(size=13, weight="bold")
                          ).pack(anchor="w", padx=16, pady=3)
 
-        # Streak
         if result["streak"] > 1:
-            ctk.CTkLabel(popup,
-                         text=f"🔥 Streak: {result['streak']} days!",
+            ctk.CTkLabel(content_frame,
+                         text=f"Streak: {result['streak']} days!",
                          text_color="#ff9900",
                          font=ctk.CTkFont(size=12, weight="bold")
-                         ).pack(pady=(0,8))
+                         ).pack(pady=(0, 8))
 
-        # Skill XP gained
         skill_events = [s for s in result.get("skill_events", []) if not s["leveled_up"]]
         if skill_events:
-            ctk.CTkLabel(popup, text="Skill XP",
+            ctk.CTkLabel(content_frame, text="Skill XP",
                          text_color="#aaaaaa",
                          font=ctk.CTkFont(size=11, weight="bold")
                          ).pack(anchor="w", padx=24)
-            skills_frame = ctk.CTkFrame(popup, fg_color="#1e1e2e", corner_radius=8)
-            skills_frame.pack(fill="x", padx=20, pady=(4,12))
+            skills_frame = ctk.CTkFrame(content_frame, fg_color="#1e1e2e", corner_radius=8)
+            skills_frame.pack(fill="x", padx=20, pady=(4, 12))
             for s in skill_events:
                 ctk.CTkLabel(skills_frame,
-                             text=f"🧠 {s['name']}  + {s['xp_gained']} XP",
+                             text=f"{s['name']}  + {s['xp_gained']} XP",
                              text_color="#00ff88",
                              font=ctk.CTkFont(size=11)
                              ).pack(anchor="w", padx=16, pady=2)
 
-        ctk.CTkButton(popup, text="Collect!", height=36,
-                      text_color="#44ff88",
+        footer_frame = ctk.CTkFrame(popup, fg_color="#171a24", corner_radius=10)
+        footer_frame.grid(row=1, column=0, sticky="ew", padx=20, pady=(8, 12))
+        footer_frame.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            footer_frame,
+            text="Rewards added to your hero. Collect and move to your next mission.",
+            text_color="#b8c4d6",
+            wraplength=320,
+            justify="center",
+            font=ctk.CTkFont(size=11)
+        ).pack(padx=14, pady=(10, 8))
+
+        ctk.CTkButton(footer_frame, text="Collect Rewards", height=38,
+                      fg_color=UI_COLORS["accent_green"],
+                      hover_color="#34b564",
+                      text_color="#0b1a12",
                       font=ctk.CTkFont(size=13, weight="bold"),
                       command=popup.destroy
-                      ).pack(pady=8)
+                      ).pack(fill="x", padx=14, pady=(0, 12))
 
     def show_quest_complete_popup(self, quest):
         popup = ctk.CTkToplevel(self.root)
@@ -494,10 +470,25 @@ class SkillUI:
                          font=ctk.CTkFont(size=13, weight="bold")
                          ).pack(anchor="w", padx=16, pady=4)
 
-        ctk.CTkButton(popup, text="Claim", height=36,
+        footer_frame = ctk.CTkFrame(popup, fg_color="#171a24", corner_radius=10)
+        footer_frame.pack(fill="x", padx=20, pady=(0,12))
+
+        ctk.CTkLabel(
+            footer_frame,
+            text="Quest rewards are now ready in your progression path.",
+            text_color="#b8c4d6",
+            wraplength=300,
+            justify="center",
+            font=ctk.CTkFont(size=11)
+        ).pack(padx=14, pady=(10,8))
+
+        ctk.CTkButton(footer_frame, text="Collect Quest Rewards", height=36,
+                      fg_color=UI_COLORS["accent_blue"],
+                      hover_color="#2e97db",
+                      text_color="#08131f",
                       font=ctk.CTkFont(size=13, weight="bold"),
                       command=popup.destroy
-                      ).pack(pady=6)
+                      ).pack(fill="x", padx=14, pady=(0,12))
 
     def show_level_up_popup(self, level_event):
         """
@@ -2923,3 +2914,6 @@ class SkillUI:
 
     def get_required_sxp(self, level):
         return 50 + (level-1) * 25
+
+
+
