@@ -325,6 +325,33 @@ class SkillUI:
                       command=self.show_settings
                       ).grid(row=4, column=0, columnspan=2, sticky="ew", padx=8, pady=(6, 8))
 
+    def _build_popup_footer(self, parent, message, button_text, button_color, hover_color,
+                            text_color, command, wraplength=320):
+        footer_frame = ctk.CTkFrame(parent, fg_color="#171a24", corner_radius=10)
+        footer_frame.pack(fill="x", padx=20, pady=(8, 12))
+
+        ctk.CTkLabel(
+            footer_frame,
+            text=message,
+            text_color="#b8c4d6",
+            wraplength=wraplength,
+            justify="center",
+            font=ctk.CTkFont(size=11)
+        ).pack(padx=14, pady=(10, 8))
+
+        ctk.CTkButton(
+            footer_frame,
+            text=button_text,
+            height=38,
+            fg_color=button_color,
+            hover_color=hover_color,
+            text_color=text_color,
+            font=ctk.CTkFont(size=13, weight="bold"),
+            command=command
+        ).pack(fill="x", padx=14, pady=(0, 12))
+
+        return footer_frame
+
     # -------------------------------------------------------------------------
     # RICH REWARD POPUPS
     # -------------------------------------------------------------------------
@@ -412,26 +439,17 @@ class SkillUI:
                              font=ctk.CTkFont(size=11)
                              ).pack(anchor="w", padx=16, pady=2)
 
-        footer_frame = ctk.CTkFrame(popup, fg_color="#171a24", corner_radius=10)
-        footer_frame.grid(row=1, column=0, sticky="ew", padx=20, pady=(8, 12))
-        footer_frame.grid_columnconfigure(0, weight=1)
-
-        ctk.CTkLabel(
-            footer_frame,
-            text="Rewards added to your hero. Collect and move to your next mission.",
-            text_color="#b8c4d6",
-            wraplength=320,
-            justify="center",
-            font=ctk.CTkFont(size=11)
-        ).pack(padx=14, pady=(10, 8))
-
-        ctk.CTkButton(footer_frame, text="Collect Rewards", height=38,
-                      fg_color=UI_COLORS["accent_green"],
-                      hover_color="#34b564",
-                      text_color="#0b1a12",
-                      font=ctk.CTkFont(size=13, weight="bold"),
-                      command=popup.destroy
-                      ).pack(fill="x", padx=14, pady=(0, 12))
+        footer_host = ctk.CTkFrame(popup, fg_color="transparent")
+        footer_host.grid(row=1, column=0, sticky="ew")
+        self._build_popup_footer(
+            footer_host,
+            "Rewards added to your hero. Collect and move to your next mission.",
+            "Collect Rewards",
+            UI_COLORS["accent_green"],
+            "#34b564",
+            "#0b1a12",
+            popup.destroy
+        )
 
     def show_quest_complete_popup(self, quest):
         popup = ctk.CTkToplevel(self.root)
@@ -470,25 +488,16 @@ class SkillUI:
                          font=ctk.CTkFont(size=13, weight="bold")
                          ).pack(anchor="w", padx=16, pady=4)
 
-        footer_frame = ctk.CTkFrame(popup, fg_color="#171a24", corner_radius=10)
-        footer_frame.pack(fill="x", padx=20, pady=(0,12))
-
-        ctk.CTkLabel(
-            footer_frame,
-            text="Quest rewards are now ready in your progression path.",
-            text_color="#b8c4d6",
-            wraplength=300,
-            justify="center",
-            font=ctk.CTkFont(size=11)
-        ).pack(padx=14, pady=(10,8))
-
-        ctk.CTkButton(footer_frame, text="Collect Quest Rewards", height=36,
-                      fg_color=UI_COLORS["accent_blue"],
-                      hover_color="#2e97db",
-                      text_color="#08131f",
-                      font=ctk.CTkFont(size=13, weight="bold"),
-                      command=popup.destroy
-                      ).pack(fill="x", padx=14, pady=(0,12))
+        self._build_popup_footer(
+            popup,
+            "Quest rewards are now ready in your progression path.",
+            "Collect Quest Rewards",
+            UI_COLORS["accent_blue"],
+            "#2e97db",
+            "#08131f",
+            popup.destroy,
+            wraplength=300
+        )
 
     def show_level_up_popup(self, level_event):
         """
@@ -535,11 +544,15 @@ class SkillUI:
                      font=ctk.CTkFont(size=11)
                      ).pack(pady=(0,12))
 
-        ctk.CTkButton(popup, text="Let's Go! 💪", height=36,
-                      text_color="#ffcc00",
-                      font=ctk.CTkFont(size=13, weight="bold"),
-                      command=popup.destroy
-                      ).pack(pady=4)
+        self._build_popup_footer(
+            popup,
+            "Your hero is stronger now. Step back in and use the new power well.",
+            "Continue Journey",
+            "#2a2d3a",
+            "#363a4a",
+            "#ffcc00",
+            popup.destroy
+        )
 
     def show_skill_level_up_popup(self, skill_event):
         """
@@ -591,11 +604,15 @@ class SkillUI:
                      font=ctk.CTkFont(size=11)
                      ).pack(pady=(0,16))
 
-        ctk.CTkButton(popup, text="Nice! 🔥", height=36,
-                      text_color="#00ff88",
-                      font=ctk.CTkFont(size=13, weight="bold"),
-                      command=popup.destroy
-                      ).pack(pady=4)
+        self._build_popup_footer(
+            popup,
+            "Your skill growth is locked in. Keep practicing to push the next level.",
+            "Keep Training",
+            "#1f3a30",
+            "#285042",
+            "#00ff88",
+            popup.destroy
+        )
 
     def show_achievement_unlock_popup(self, title):
         """
@@ -650,11 +667,15 @@ class SkillUI:
                      font=ctk.CTkFont(size=10)
                      ).pack(pady=(0,8))
 
-        ctk.CTkButton(popup, text="Awesome! 🏆", height=36,
-                      text_color="#ffd700",
-                      font=ctk.CTkFont(size=13, weight="bold"),
-                      command=popup.destroy
-                      ).pack(pady=4)
+        self._build_popup_footer(
+            popup,
+            "Another milestone is now part of your story. Keep stacking these wins.",
+            "Celebrate and Continue",
+            "#3b3220",
+            "#4c4128",
+            "#ffd700",
+            popup.destroy
+        )
 
     def show_boss_victory_popup(self, result):
         """
@@ -724,11 +745,15 @@ class SkillUI:
                              font=ctk.CTkFont(size=11)
                              ).pack(anchor="w", padx=28, pady=1)
 
-        ctk.CTkButton(popup, text="Victory! 🎉", height=36,
-                      text_color="#ffcc00",
-                      font=ctk.CTkFont(size=13, weight="bold"),
-                      command=popup.destroy
-                      ).pack(pady=12)
+        self._build_popup_footer(
+            popup,
+            "Boss rewards have been added. Take the win and prepare for the next challenge.",
+            "Claim Victory",
+            "#3b2a1f",
+            "#4b3527",
+            "#ffcc00",
+            popup.destroy
+        )
 
     def show_shop_skill_up_popup(self, result):
         """
@@ -2072,8 +2097,9 @@ class SkillUI:
                 on_complete()
 
         name_entry.bind("<Return>", lambda e: save_name())
-        ctk.CTkButton(popup, text="Start Game!", height=38,
-                      text_color="#ffcc00", font=ctk.CTkFont(size=13, weight="bold"),
+        ctk.CTkButton(popup, text="Save Name", height=36,
+                      text_color="#ffcc00",
+                      font=ctk.CTkFont(size=13, weight="bold"),
                       command=save_name).pack(pady=6)
 
     def open_change_name_popup(self):
@@ -2113,7 +2139,7 @@ class SkillUI:
             self.show_settings()
 
         name_entry.bind("<Return>", lambda e: save_name())
-        ctk.CTkButton(popup, text="Save Name", height=36,
+        ctk.CTkButton(popup, text="Save Name", height=34,
                       font=ctk.CTkFont(size=12, weight="bold"),
                       command=save_name).pack(pady=10)
 
@@ -2193,7 +2219,7 @@ class SkillUI:
             popup.destroy()
             self.show_tasks(self.current_period)
 
-        ctk.CTkButton(popup, text="Save Task", height=36,
+        ctk.CTkButton(popup, text="Add Task", height=34,
                       font=ctk.CTkFont(size=12, weight="bold"),
                       command=save_task).grid(row=6, column=0, columnspan=2, pady=16)
 
@@ -2229,7 +2255,7 @@ class SkillUI:
             popup.destroy()
             self.show_tasks(self.current_period)
 
-        ctk.CTkButton(popup, text="Save Changes", height=36,
+        ctk.CTkButton(popup, text="Save Changes", height=34,
                       font=ctk.CTkFont(size=12, weight="bold"),
                       command=save_changes).grid(row=3, column=0, columnspan=2, pady=16)
 
@@ -2901,7 +2927,7 @@ class SkillUI:
             if on_close:
                 on_close()
 
-        ctk.CTkButton(popup, text="Claim!", height=36,
+        ctk.CTkButton(popup, text="Claim Reward", height=36,
                       text_color="#ffcc00", font=ctk.CTkFont(size=13, weight="bold"),
                       command=claim).pack(pady=10)
 
@@ -2914,6 +2940,8 @@ class SkillUI:
 
     def get_required_sxp(self, level):
         return 50 + (level-1) * 25
+
+
 
 
 
