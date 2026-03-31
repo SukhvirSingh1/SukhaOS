@@ -108,28 +108,6 @@ Difficulty multipliers: Easy ×0.8 / Medium ×1.0 / Hard ×1.5
 
 ---
 
-## Database Schema
-
-```
-player        — id, oxp, level, gold, last_login, login_streak
-task          — id, title, description, period, difficulty, oxp, gold, status, last_completed, streak
-skill         — id, name, xp, level
-task_reward   — task_id, skill_name, sxp
-task_history  — id, task_id, title, difficulty, date_completed
-achievement   — id, title, description, unlocked
-```
-
----
-
-## Roadmap
-
-- [ ] Character name + custom profile
-- [ ] Export stats to PDF
-- [ ] Sound effects on level up
-- [ ] ML-based task recommendation system
-- [ ] Mobile version
-
----
 
 ## About
 
