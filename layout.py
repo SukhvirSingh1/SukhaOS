@@ -320,10 +320,15 @@ class SkillUI:
                       command=self.show_heatmap
                       ).grid(row=3, column=1, sticky="ew", padx=(4, 8), pady=6)
 
+        ctk.CTkButton(action_panel, text="Weekly Review", height=32,
+                      font=ctk.CTkFont(size=12, weight="bold"),
+                      command=self.show_weekly_review
+                      ).grid(row=4, column=0, sticky="ew", padx=(8, 4), pady=6)
+
         ctk.CTkButton(action_panel, text="Settings", height=32,
                       font=ctk.CTkFont(size=12, weight="bold"),
                       command=self.show_settings
-                      ).grid(row=4, column=0, columnspan=2, sticky="ew", padx=8, pady=(6, 8))
+                      ).grid(row=4, column=1, sticky="ew", padx=(4, 8), pady=6)
 
     def _build_popup_footer(self, parent, message, button_text, button_color, hover_color,
                             text_color, command, wraplength=320):
@@ -1398,6 +1403,9 @@ class SkillUI:
         ctk.CTkButton(action_frame, text="Shop", height=32,
                       command=self.show_shop
                       ).grid(row=1, column=1, padx=4, pady=4, sticky="ew")
+        ctk.CTkButton(action_frame, text="Weekly Review", height=32,
+                      command=self.show_weekly_review
+                      ).grid(row=2, column=0, padx=4, pady=4, sticky="ew")
         final_action = ctk.CTkButton(
             action_frame,
             text="Fight Boss" if active_boss else "Stats",
@@ -1406,7 +1414,7 @@ class SkillUI:
         )
         if active_boss:
             final_action.configure(fg_color="#8b0000", hover_color="#aa0000")
-        final_action.grid(row=2, column=0, columnspan=2, padx=4, pady=4, sticky="ew")
+        final_action.grid(row=2, column=1, padx=4, pady=4, sticky="ew")
 
     def _create_task_card(self, parent, task):
         status_done = task["status"] == "Completed"
@@ -1994,6 +2002,218 @@ class SkillUI:
                       font=ctk.CTkFont(size=11),
                       command=lambda: self.switch_menu(self.current_period)
                       ).grid(row=row+1, column=0, pady=16)
+
+    def show_weekly_review(self):
+        self.clear_content()
+
+        for i in range(12):
+            self.task_container.grid_rowconfigure(i, weight=0)
+            self.task_container.grid_columnconfigure(i, weight=0)
+
+        self.task_container.grid_columnconfigure(0, weight=1)
+        self.task_container.grid_rowconfigure(2, weight=1)
+
+        player = self.db.get_player()
+        review = self.db.get_weekly_review_summary()
+        quests = self.db.get_quests_with_progress()
+        active_quests = [quest for quest in quests if quest["status"] == "Active"]
+        active_quests.sort(
+            key=lambda quest: quest.get("progress", {}).get("ratio", 0),
+            reverse=True
+        )
+
+        focus_skill = review.get("top_skill", {}).get("name") if review.get("top_skill") else None
+        focus_area = focus_skill or (review.get("top_category") or review.get("strongest_period") or "Consistency")
+
+        ctk.CTkLabel(self.task_container, text="Weekly Review",
+                     font=ctk.CTkFont(size=20, weight="bold")
+                     ).grid(row=0, column=0, sticky="w", padx=12, pady=(8, 2))
+        ctk.CTkLabel(
+            self.task_container,
+            text=f"{review['start_date']} to {review['end_date']}  |  Reflect on your real-world progress and game growth.",
+            text_color=UI_COLORS["text_muted"],
+            font=ctk.CTkFont(size=11)
+        ).grid(row=1, column=0, sticky="w", padx=12, pady=(0, 10))
+
+        review_scroll = ctk.CTkScrollableFrame(
+            self.task_container,
+            fg_color="transparent",
+            corner_radius=0
+        )
+        review_scroll.grid(row=2, column=0, sticky="nsew", padx=2, pady=(0, 4))
+        review_scroll.grid_columnconfigure(0, weight=1)
+        review_scroll.grid_columnconfigure(1, weight=1)
+
+        summary_frame = ctk.CTkFrame(review_scroll, fg_color="transparent")
+        summary_frame.grid(row=0, column=0, columnspan=2, sticky="ew", padx=4, pady=(0, 4))
+        summary_frame.grid_columnconfigure(0, weight=1)
+        summary_frame.grid_columnconfigure(1, weight=1)
+        summary_frame.grid_columnconfigure(2, weight=1)
+
+        self._create_dashboard_card(
+            summary_frame,
+            "Weekly Wins",
+            f"Tasks completed: {review['tasks_completed']}\n"
+            f"Quests completed: {review['quests_completed']}\n"
+            f"Active quests moving: {len(active_quests)}",
+            UI_COLORS["accent_green"],
+            0, 0
+        )
+        self._create_dashboard_card(
+            summary_frame,
+            "Growth Gained",
+            f"OXP earned: {review['oxp_gained']}\n"
+            f"Gold earned: {review['gold_gained']}\n"
+            f"ATK gained: {review['attack_gained']}",
+            UI_COLORS["accent_gold"],
+            0, 1
+        )
+        self._create_dashboard_card(
+            summary_frame,
+            "Best Focus",
+            f"Top skill: {focus_skill or 'No skill XP logged'}\n"
+            f"Strongest period: {(review.get('strongest_period') or 'No clear pattern').title() if review.get('strongest_period') else 'No clear pattern'}\n"
+            f"Main focus area: {str(focus_area).title()}",
+            UI_COLORS["accent_blue"],
+            0, 2
+        )
+
+        left_panel = ctk.CTkFrame(review_scroll, corner_radius=12, fg_color=UI_COLORS["panel"])
+        left_panel.grid(row=1, column=0, sticky="nsew", padx=(8, 4), pady=6)
+        left_panel.columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(left_panel, text="Consistency Breakdown",
+                     font=ctk.CTkFont(size=15, weight="bold")
+                     ).grid(row=0, column=0, sticky="w", padx=16, pady=(14, 8))
+
+        breakdown_lines = review.get("daily_breakdown") or []
+        if not breakdown_lines:
+            ctk.CTkLabel(left_panel,
+                         text="No tasks completed this week yet.\nYour next completed task starts the review story.",
+                         text_color=UI_COLORS["text_muted"],
+                         justify="left",
+                         font=ctk.CTkFont(size=11)
+                         ).grid(row=1, column=0, sticky="w", padx=16, pady=(0, 12))
+        else:
+            for row_index, day_data in enumerate(breakdown_lines, start=1):
+                row_card = ctk.CTkFrame(left_panel, fg_color=UI_COLORS["card"], corner_radius=10)
+                row_card.grid(row=row_index, column=0, sticky="ew", padx=14, pady=5)
+                row_card.columnconfigure(1, weight=1)
+                ctk.CTkLabel(row_card, text=day_data["date"],
+                             text_color="#dde7f2",
+                             font=ctk.CTkFont(size=11, weight="bold")
+                             ).grid(row=0, column=0, sticky="w", padx=12, pady=10)
+                ctk.CTkLabel(row_card, text=f"{day_data['count']} task(s)",
+                             text_color=UI_COLORS["accent_green"],
+                             font=ctk.CTkFont(size=11)
+                             ).grid(row=0, column=1, sticky="e", padx=12, pady=10)
+
+        right_panel = ctk.CTkFrame(review_scroll, corner_radius=12, fg_color=UI_COLORS["panel"])
+        right_panel.grid(row=1, column=1, sticky="nsew", padx=(4, 8), pady=6)
+        right_panel.columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(right_panel, text="Growth Highlights",
+                     font=ctk.CTkFont(size=15, weight="bold")
+                     ).grid(row=0, column=0, sticky="w", padx=16, pady=(14, 8))
+
+        highlight_lines = [
+            f"Hero level now: {player['level']}",
+            f"Login streak: {player.get('login_streak', 0)} day(s)",
+            f"Best task streak: {self.db.get_max_task_streak()}",
+            f"Top skill improved: {focus_skill or 'No skill XP this week'}",
+        ]
+        if review.get("top_category"):
+            highlight_lines.append(f"Quest category completed most: {review['top_category'].title()}")
+
+        for row_index, line in enumerate(highlight_lines, start=1):
+            ctk.CTkLabel(right_panel, text=line,
+                         text_color="#dde7f2",
+                         justify="left",
+                         font=ctk.CTkFont(size=11)
+                         ).grid(row=row_index, column=0, sticky="w", padx=16, pady=3)
+
+        skill_panel = ctk.CTkFrame(review_scroll, corner_radius=12, fg_color=UI_COLORS["panel"])
+        skill_panel.grid(row=2, column=0, sticky="nsew", padx=(8, 4), pady=6)
+        skill_panel.columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(skill_panel, text="Skill Momentum",
+                     font=ctk.CTkFont(size=15, weight="bold")
+                     ).grid(row=0, column=0, sticky="w", padx=16, pady=(14, 8))
+
+        skill_breakdown = review.get("skill_breakdown") or []
+        if not skill_breakdown:
+            ctk.CTkLabel(skill_panel,
+                         text="No skill XP was logged this week yet.",
+                         text_color=UI_COLORS["text_muted"],
+                         font=ctk.CTkFont(size=11)
+                         ).grid(row=1, column=0, sticky="w", padx=16, pady=(0, 12))
+        else:
+            for row_index, skill_data in enumerate(skill_breakdown[:5], start=1):
+                skill_card = ctk.CTkFrame(skill_panel, fg_color=UI_COLORS["card"], corner_radius=10)
+                skill_card.grid(row=row_index, column=0, sticky="ew", padx=14, pady=5)
+                skill_card.columnconfigure(0, weight=1)
+                ctk.CTkLabel(skill_card, text=skill_data["skill"],
+                             font=ctk.CTkFont(size=11, weight="bold")
+                             ).grid(row=0, column=0, sticky="w", padx=12, pady=10)
+                ctk.CTkLabel(skill_card, text=f"+{skill_data['xp']} SXP",
+                             text_color=UI_COLORS["accent_green"],
+                             font=ctk.CTkFont(size=11)
+                             ).grid(row=0, column=1, sticky="e", padx=12, pady=10)
+
+        quest_panel = ctk.CTkFrame(review_scroll, corner_radius=12, fg_color=UI_COLORS["panel"])
+        quest_panel.grid(row=2, column=1, sticky="nsew", padx=(4, 8), pady=6)
+        quest_panel.columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(quest_panel, text="Quest Pulse",
+                     font=ctk.CTkFont(size=15, weight="bold")
+                     ).grid(row=0, column=0, sticky="w", padx=16, pady=(14, 8))
+
+        if not active_quests:
+            ctk.CTkLabel(quest_panel,
+                         text="No active quests right now.\nCreate one to turn your real-life goals into a bigger mission.",
+                         text_color=UI_COLORS["text_muted"],
+                         justify="left",
+                         font=ctk.CTkFont(size=11)
+                         ).grid(row=1, column=0, sticky="w", padx=16, pady=(0, 12))
+        else:
+            for row_index, quest in enumerate(active_quests[:3], start=1):
+                progress = quest.get("progress") or {"progress_value": 0, "target_value": 1, "ratio": 0}
+                block = ctk.CTkFrame(quest_panel, fg_color=UI_COLORS["card"], corner_radius=10)
+                block.grid(row=row_index, column=0, sticky="ew", padx=14, pady=5)
+                block.columnconfigure(0, weight=1)
+                ctk.CTkLabel(block, text=quest["title"],
+                             font=ctk.CTkFont(size=11, weight="bold")
+                             ).grid(row=0, column=0, sticky="w", padx=12, pady=(10, 2))
+                ctk.CTkLabel(block,
+                             text=f"{progress['progress_value']} / {progress['target_value']}  |  {quest['category'].title()}",
+                             text_color=UI_COLORS["text_muted"],
+                             font=ctk.CTkFont(size=10)
+                             ).grid(row=1, column=0, sticky="w", padx=12)
+                bar = ctk.CTkProgressBar(block, height=8, corner_radius=4, progress_color=UI_COLORS["accent_blue"])
+                bar.set(progress["ratio"])
+                bar.grid(row=2, column=0, sticky="ew", padx=12, pady=(6, 10))
+
+        action_panel = ctk.CTkFrame(review_scroll, corner_radius=12, fg_color=UI_COLORS["panel"])
+        action_panel.grid(row=3, column=0, columnspan=2, sticky="ew", padx=8, pady=(6, 10))
+        action_panel.grid_columnconfigure(0, weight=1)
+        action_panel.grid_columnconfigure(1, weight=1)
+        action_panel.grid_columnconfigure(2, weight=1)
+
+        ctk.CTkButton(action_panel, text="Dashboard", height=34,
+                      fg_color=UI_COLORS["accent_blue"],
+                      hover_color="#2e97db",
+                      text_color="#08131f",
+                      command=self.show_dashboard
+                      ).grid(row=0, column=0, padx=6, pady=10, sticky="ew")
+        ctk.CTkButton(action_panel, text="Daily Tasks", height=34,
+                      fg_color=UI_COLORS["accent_green"],
+                      hover_color="#34b564",
+                      text_color="#0b1a12",
+                      command=lambda: self.switch_menu("daily")
+                      ).grid(row=0, column=1, padx=6, pady=10, sticky="ew")
+        ctk.CTkButton(action_panel, text="Quests", height=34,
+                      command=self.show_quests
+                      ).grid(row=0, column=2, padx=6, pady=10, sticky="ew")
 
     def show_history(self):
         self.clear_content()

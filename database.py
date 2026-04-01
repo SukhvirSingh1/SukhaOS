@@ -8,7 +8,7 @@ import sqlite3
 import json
 import os
 import shutil
-from datetime import datetime
+from datetime import datetime, date, timedelta
 
 
 class Database:
@@ -606,6 +606,111 @@ class Database:
             FROM task_history ORDER BY date_completed DESC
         """)
         return cursor.fetchall()
+
+    def get_weekly_review_summary(self):
+        start_date = date.today() - timedelta(days=6)
+        start_str = start_date.isoformat()
+        cursor = self.conn.cursor()
+
+        cursor.execute("""
+            SELECT COUNT(*)
+            FROM task_history
+            WHERE date_completed >= ?
+        """, (start_str,))
+        tasks_completed = cursor.fetchone()[0] or 0
+
+        cursor.execute("""
+            SELECT th.date_completed, COUNT(*)
+            FROM task_history th
+            WHERE th.date_completed >= ?
+            GROUP BY th.date_completed
+            ORDER BY th.date_completed
+        """, (start_str,))
+        daily_breakdown = [
+            {"date": row[0], "count": row[1]}
+            for row in cursor.fetchall()
+        ]
+
+        cursor.execute("""
+            SELECT
+                COALESCE(SUM(t.oxp), 0),
+                COALESCE(SUM(t.gold), 0),
+                COALESCE(SUM(CASE
+                    WHEN LOWER(COALESCE(t.difficulty, 'medium')) = 'easy' THEN 5
+                    WHEN LOWER(COALESCE(t.difficulty, 'medium')) = 'hard' THEN 15
+                    ELSE 10
+                END), 0)
+            FROM task_history th
+            JOIN task t ON t.id = th.task_id
+            WHERE th.date_completed >= ?
+        """, (start_str,))
+        totals = cursor.fetchone() or (0, 0, 0)
+        oxp_gained, gold_gained, attack_gained = totals
+
+        cursor.execute("""
+            SELECT t.period, COUNT(*)
+            FROM task_history th
+            JOIN task t ON t.id = th.task_id
+            WHERE th.date_completed >= ?
+            GROUP BY t.period
+            ORDER BY COUNT(*) DESC, t.period
+        """, (start_str,))
+        period_rows = cursor.fetchall()
+        period_breakdown = [{"period": row[0], "count": row[1]} for row in period_rows]
+        strongest_period = period_rows[0][0] if period_rows else None
+
+        cursor.execute("""
+            SELECT tr.skill_name, COALESCE(SUM(tr.sxp), 0)
+            FROM task_history th
+            JOIN task_reward tr ON tr.task_id = th.task_id
+            WHERE th.date_completed >= ?
+            GROUP BY tr.skill_name
+            ORDER BY SUM(tr.sxp) DESC, tr.skill_name
+        """, (start_str,))
+        skill_rows = cursor.fetchall()
+        skill_breakdown = [{"skill": row[0], "xp": row[1]} for row in skill_rows]
+        top_skill = (
+            {"name": skill_rows[0][0], "xp": skill_rows[0][1]}
+            if skill_rows else None
+        )
+
+        cursor.execute("""
+            SELECT COUNT(*)
+            FROM quest
+            WHERE completed_at >= ?
+        """, (start_str,))
+        quests_completed = cursor.fetchone()[0] or 0
+
+        cursor.execute("""
+            SELECT category, COUNT(*)
+            FROM quest
+            WHERE completed_at >= ?
+            GROUP BY category
+            ORDER BY COUNT(*) DESC, category
+        """, (start_str,))
+        quest_category_rows = cursor.fetchall()
+        quest_category_breakdown = [
+            {"category": row[0], "count": row[1]}
+            for row in quest_category_rows
+        ]
+        top_category = quest_category_rows[0][0] if quest_category_rows else None
+
+        return {
+            "start_date": start_str,
+            "end_date": date.today().isoformat(),
+            "tasks_completed": tasks_completed,
+            "quests_completed": quests_completed,
+            "oxp_gained": oxp_gained,
+            "gold_gained": gold_gained,
+            "attack_gained": attack_gained,
+            "daily_breakdown": daily_breakdown,
+            "period_breakdown": period_breakdown,
+            "skill_breakdown": skill_breakdown,
+            "quest_category_breakdown": quest_category_breakdown,
+            "top_skill": top_skill,
+            "strongest_period": strongest_period,
+            "top_category": top_category,
+        }
 
     def get_all_tasks(self):
         cursor = self.conn.cursor()
