@@ -13,17 +13,17 @@ import random
 class GameEngine:
     HP_PER_LEVEL          = 10
     HP_PER_HEALTH_LEVEL   = 15
-    ATTACK_PER_DIFFICULTY = {"easy": 5, "medium": 10, "hard": 15}
-    ATTACK_PER_LEVEL_UP   = 20
+    ATTACK_PER_DIFFICULTY = {"easy": 3, "medium": 6, "hard": 9}
+    ATTACK_PER_LEVEL_UP   = 8
     ARMOR_SHOP = [
-        {"key": "leather", "name": "Leather Armor", "cost": 120, "hp_bonus": 25},
-        {"key": "iron", "name": "Iron Armor", "cost": 260, "hp_bonus": 60},
-        {"key": "dragon", "name": "Dragon Armor", "cost": 500, "hp_bonus": 120},
+        {"key": "leather", "name": "Leather Armor", "cost": 140, "hp_bonus": 20},
+        {"key": "iron", "name": "Iron Armor", "cost": 300, "hp_bonus": 52},
+        {"key": "dragon", "name": "Dragon Armor", "cost": 560, "hp_bonus": 100},
     ]
     SWORD_SHOP = [
-        {"key": "iron", "name": "Iron Sword", "cost": 100, "damage_bonus": 4},
-        {"key": "steel", "name": "Steel Sword", "cost": 240, "damage_bonus": 9},
-        {"key": "legend", "name": "Legend Sword", "cost": 450, "damage_bonus": 16},
+        {"key": "iron", "name": "Iron Sword", "cost": 125, "damage_bonus": 3},
+        {"key": "steel", "name": "Steel Sword", "cost": 280, "damage_bonus": 7},
+        {"key": "legend", "name": "Legend Sword", "cost": 520, "damage_bonus": 12},
     ]
 
     BOSS_ROSTER = {
@@ -45,9 +45,9 @@ class GameEngine:
     }
 
     BOSS_REWARDS = {
-        "easy":   {"gold": 100, "oxp": 80,  "attack": 30},
-        "medium": {"gold": 250, "oxp": 200, "attack": 75},
-        "hard":   {"gold": 600, "oxp": 500, "attack": 200},
+        "easy":   {"gold": 70, "oxp": 60,  "attack": 12},
+        "medium": {"gold": 170, "oxp": 150, "attack": 28},
+        "hard":   {"gold": 420, "oxp": 360, "attack": 65},
     }
 
     def __init__(self, database):
@@ -120,12 +120,12 @@ class GameEngine:
         if player is None:
             player = self.db.get_player()
         strength = self.db.get_skill("Strength")
-        return 10 + (strength["level"] - 1) * 2 + player.get("sword_bonus_damage", 0)
+        return 8 + (strength["level"] - 1) * 2 + player.get("sword_bonus_damage", 0)
 
     def _apply_level_ups(self, player):
         level_events = []
         while True:
-            required = 100 + (player["level"] - 1) * 50
+            required = 120 + (player["level"] - 1) * 65
             if player["oxp"] >= required:
                 player["oxp"] -= required
                 player["level"] += 1
@@ -456,16 +456,16 @@ class GameEngine:
         else:
             login_streak = 1
 
-        gold, oxp = 10, 10
-        bonus_atk = 5
+        gold, oxp = 8, 8
+        bonus_atk = 3
 
         if login_streak >= 7:
-            gold, oxp = 50, 50
-            bonus_atk = 20
+            gold, oxp = 30, 35
+            bonus_atk = 10
             bonus_msg = "7 Day Login Streak! MEGA reward!"
         elif login_streak >= 3:
-            gold, oxp = 25, 25
-            bonus_atk = 10
+            gold, oxp = 18, 20
+            bonus_atk = 6
             bonus_msg = f"{login_streak} Day Streak! Bonus reward!"
         else:
             bonus_msg = f"Day {login_streak} streak. Keep it up!"
@@ -495,12 +495,12 @@ class GameEngine:
         player = self.db.get_player()
         skill  = self.db.get_skill(skill_name)
 
-        if player["gold"] < 100:
+        if player["gold"] < 120:
             return False
 
-        player["gold"]       -= 100
-        player["gold_spent"]  = player.get("gold_spent", 0) + 100
-        skill["xp"]          += 20
+        player["gold"]       -= 120
+        player["gold_spent"]  = player.get("gold_spent", 0) + 120
+        skill["xp"]          += 16
 
         old_level = skill["level"]
         self.check_skill_level_up(skill)
@@ -600,7 +600,7 @@ class GameEngine:
 
     def check_player_level_up(self, player):
         while True:
-            required = 100 + (player["level"] - 1) * 50
+            required = 120 + (player["level"] - 1) * 65
             if player["oxp"] >= required:
                 player["oxp"]           -= required
                 player["level"]         += 1

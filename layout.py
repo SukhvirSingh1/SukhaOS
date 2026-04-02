@@ -12,16 +12,16 @@ import matplotlib.pyplot as plt
 from heatmap import show_heatmap
 
 PERIOD_REWARDS = {
-    "daily":   {"gold": 20,  "oxp": 20,  "sxp": 10},
-    "weekly":  {"gold": 50,  "oxp": 60,  "sxp": 25},
-    "monthly": {"gold": 120, "oxp": 150, "sxp": 60},
-    "yearly":  {"gold": 500, "oxp": 500, "sxp": 200}
+    "daily":   {"gold": 15,  "oxp": 15,  "sxp": 8},
+    "weekly":  {"gold": 38,  "oxp": 42,  "sxp": 18},
+    "monthly": {"gold": 85,  "oxp": 100, "sxp": 38},
+    "yearly":  {"gold": 220, "oxp": 260, "sxp": 95}
 }
 
 QUEST_DIFFICULTY_MULTIPLIER = {
-    "easy": 0.20,
-    "medium": 0.30,
-    "hard": 0.45,
+    "easy": 0.12,
+    "medium": 0.18,
+    "hard": 0.26,
 }
 
 UI_COLORS = {
@@ -1992,7 +1992,7 @@ class SkillUI:
                          text=f"{skill['name']} (Lvl {skill['level']})",
                          font=ctk.CTkFont(size=12)
                          ).grid(row=row, column=0, sticky="w", padx=20)
-            ctk.CTkButton(self.task_container, text="Buy +20 XP (100 Gold)", height=30,
+            ctk.CTkButton(self.task_container, text="Buy +16 XP (120 Gold)", height=30,
                           font=ctk.CTkFont(size=11),
                           command=lambda s=skill["name"]: self.buy_skill(s)
                           ).grid(row=row, column=1, padx=10, pady=4)
@@ -2511,20 +2511,20 @@ class SkillUI:
             total_oxp += task.get("oxp", 0)
             total_gold += task.get("gold", 0)
             total_atk += self.engine.ATTACK_PER_DIFFICULTY.get(
-                task.get("difficulty", "medium").lower(), 10
+                task.get("difficulty", "medium").lower(), 6
             )
             for reward in self.db.get_task_rewards(task_id):
                 total_sxp += reward.get("sxp", 0)
 
         linked_count = max(1, len(task_ids))
-        difficulty_mult = QUEST_DIFFICULTY_MULTIPLIER.get(quest_difficulty, 0.30)
+        difficulty_mult = QUEST_DIFFICULTY_MULTIPLIER.get(quest_difficulty, 0.18)
         mode_mult = 1.0
         if progress_mode == "completion_count":
-            mode_mult += min(0.35, max(0, target_count - linked_count) * 0.08)
+            mode_mult += min(0.20, max(0, target_count - linked_count) * 0.05)
 
         quest_oxp = max(10, int(total_oxp * difficulty_mult * mode_mult))
-        quest_gold = max(10, int(total_gold * (difficulty_mult * 0.85) * mode_mult))
-        quest_atk = max(3, int(total_atk * (difficulty_mult * 0.55) * mode_mult))
+        quest_gold = max(8, int(total_gold * (difficulty_mult * 0.75) * mode_mult))
+        quest_atk = max(2, int(total_atk * (difficulty_mult * 0.35) * mode_mult))
 
         return {
             "oxp_reward": quest_oxp,
@@ -3156,7 +3156,7 @@ class SkillUI:
     # -------------------------------------------------------------------------
 
     def get_required_oxp(self, level):
-        return 100 + (level-1) * 50
+        return 120 + (level - 1) * 65
 
     def get_required_sxp(self, level):
         return 50 + (level-1) * 25
