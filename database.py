@@ -712,6 +712,174 @@ class Database:
             "top_category": top_category,
         }
 
+    def get_progression_insights_summary(self):
+        cursor = self.conn.cursor()
+        player = self.get_player()
+
+        cursor.execute("""
+            SELECT
+                COUNT(*),
+                COALESCE(SUM(CASE WHEN status='Completed' THEN 1 ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN status!='Completed' THEN 1 ELSE 0 END), 0)
+            FROM task
+        """)
+        task_totals = cursor.fetchone() or (0, 0, 0)
+        total_tasks, completed_tasks, pending_tasks = task_totals
+
+        cursor.execute("""
+            SELECT LOWER(COALESCE(difficulty, 'medium')), COUNT(*)
+            FROM task
+            GROUP BY LOWER(COALESCE(difficulty, 'medium'))
+            ORDER BY COUNT(*) DESC
+        """)
+        task_mix = [
+            {"difficulty": row[0], "count": row[1]}
+            for row in cursor.fetchall()
+        ]
+
+        cursor.execute("""
+            SELECT LOWER(COALESCE(difficulty, 'medium')), COUNT(*)
+            FROM task_history
+            GROUP BY LOWER(COALESCE(difficulty, 'medium'))
+            ORDER BY COUNT(*) DESC
+        """)
+        completed_difficulty_breakdown = [
+            {"difficulty": row[0], "count": row[1]}
+            for row in cursor.fetchall()
+        ]
+
+        cursor.execute("""
+            SELECT
+                COALESCE(SUM(t.oxp), 0),
+                COALESCE(SUM(t.gold), 0),
+                COALESCE(SUM(CASE
+                    WHEN LOWER(COALESCE(t.difficulty, 'medium')) = 'easy' THEN 3
+                    WHEN LOWER(COALESCE(t.difficulty, 'medium')) = 'hard' THEN 9
+                    ELSE 6
+                END), 0)
+            FROM task_history th
+            JOIN task t ON t.id = th.task_id
+        """)
+        task_reward_totals = cursor.fetchone() or (0, 0, 0)
+        task_oxp_total, task_gold_total, task_attack_total = task_reward_totals
+
+        cursor.execute("""
+            SELECT
+                COALESCE(SUM(oxp_reward), 0),
+                COALESCE(SUM(gold_reward), 0),
+                COALESCE(SUM(attack_reward), 0),
+                COUNT(*)
+            FROM quest
+            WHERE status='Completed'
+        """)
+        quest_reward_totals = cursor.fetchone() or (0, 0, 0, 0)
+        quest_oxp_total, quest_gold_total, quest_attack_total, completed_quests = quest_reward_totals
+
+        cursor.execute("""
+            SELECT COUNT(*)
+            FROM quest
+            WHERE status='Active'
+        """)
+        active_quests = cursor.fetchone()[0] or 0
+
+        cursor.execute("""
+            SELECT
+                COUNT(*),
+                COALESCE(AVG(task_count), 0)
+            FROM (
+                SELECT qt.quest_id, COUNT(*) AS task_count
+                FROM quest_task qt
+                GROUP BY qt.quest_id
+            )
+        """)
+        quest_structure = cursor.fetchone() or (0, 0)
+        total_quest_paths = quest_structure[0] or 0
+        avg_linked_tasks = round(quest_structure[1] or 0, 1)
+
+        cursor.execute("""
+            SELECT name, level, xp
+            FROM skill
+            ORDER BY level DESC, xp DESC, name ASC
+            LIMIT 1
+        """)
+        top_skill_row = cursor.fetchone()
+        top_skill = (
+            {"name": top_skill_row[0], "level": top_skill_row[1], "xp": top_skill_row[2]}
+            if top_skill_row else None
+        )
+
+        cursor.execute("SELECT COUNT(*) FROM skill")
+        total_skills = cursor.fetchone()[0] or 0
+
+        cursor.execute("SELECT COUNT(*) FROM skill WHERE level >= 5")
+        skills_above_five = cursor.fetchone()[0] or 0
+
+        cursor.execute("SELECT COUNT(*) FROM boss WHERE defeated=1")
+        bosses_defeated = cursor.fetchone()[0] or 0
+
+        cursor.execute("SELECT COUNT(*) FROM achievement WHERE unlocked=1")
+        achievements_unlocked = cursor.fetchone()[0] or 0
+
+        total_oxp_earned = task_oxp_total + quest_oxp_total
+        total_gold_earned = player.get("total_gold_earned", 0)
+        total_attack_earned = task_attack_total + quest_attack_total
+        quest_share = round((quest_oxp_total / total_oxp_earned) * 100, 1) if total_oxp_earned > 0 else 0
+        completion_rate = round((completed_tasks / total_tasks) * 100, 1) if total_tasks > 0 else 0
+        net_gold = total_gold_earned - player.get("gold_spent", 0)
+
+        balance_notes = []
+        if total_tasks == 0:
+            balance_notes.append("No tasks exist yet, so progression data is still waiting for your first loop.")
+        if total_tasks > 0 and completion_rate < 40:
+            balance_notes.append("Completion rate is low, which can mean the task list is growing faster than it is being cleared.")
+        if total_tasks > 0 and completion_rate >= 75:
+            balance_notes.append("Completion rate is strong, so the current pacing is supporting consistency well.")
+        if total_gold_earned > 0 and player.get("gold_spent", 0) < total_gold_earned * 0.25:
+            balance_notes.append("Gold spending is light compared to gold earned, so the shop economy may still have room for more sinks.")
+        if completed_quests == 0 and active_quests > 0:
+            balance_notes.append("Quests are active but none are finished yet, which may mean quest goals are still a bit long-term.")
+        if bosses_defeated == 0 and player["level"] >= 10:
+            balance_notes.append("The player has reached boss levels but has not defeated one yet, so combat pressure may be higher than payoff.")
+        if not balance_notes:
+            balance_notes.append("Progression looks fairly healthy right now, with no obvious economy warning signs.")
+
+        return {
+            "player_level": player["level"],
+            "player_oxp": player["oxp"],
+            "player_gold": player["gold"],
+            "attack_points": player["attack_points"],
+            "current_hp": player["current_hp"],
+            "max_hp": player["max_hp"],
+            "total_gold_earned": total_gold_earned,
+            "gold_spent": player.get("gold_spent", 0),
+            "net_gold": net_gold,
+            "task_oxp_total": task_oxp_total,
+            "task_gold_total": task_gold_total,
+            "task_attack_total": task_attack_total,
+            "quest_oxp_total": quest_oxp_total,
+            "quest_gold_total": quest_gold_total,
+            "quest_attack_total": quest_attack_total,
+            "total_oxp_earned": total_oxp_earned,
+            "total_attack_earned": total_attack_earned,
+            "quest_share_percent": quest_share,
+            "total_tasks": total_tasks,
+            "completed_tasks": completed_tasks,
+            "pending_tasks": pending_tasks,
+            "completion_rate": completion_rate,
+            "task_mix": task_mix,
+            "completed_difficulty_breakdown": completed_difficulty_breakdown,
+            "active_quests": active_quests,
+            "completed_quests": completed_quests,
+            "total_quest_paths": total_quest_paths,
+            "avg_linked_tasks": avg_linked_tasks,
+            "bosses_defeated": bosses_defeated,
+            "achievements_unlocked": achievements_unlocked,
+            "top_skill": top_skill,
+            "total_skills": total_skills,
+            "skills_above_five": skills_above_five,
+            "balance_notes": balance_notes,
+        }
+
     def get_all_tasks(self):
         cursor = self.conn.cursor()
         cursor.execute("""

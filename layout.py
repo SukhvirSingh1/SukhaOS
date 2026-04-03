@@ -325,10 +325,15 @@ class SkillUI:
                       command=self.show_weekly_review
                       ).grid(row=4, column=0, sticky="ew", padx=(8, 4), pady=6)
 
+        ctk.CTkButton(action_panel, text="Insights", height=32,
+                      font=ctk.CTkFont(size=12, weight="bold"),
+                      command=self.show_progression_insights
+                      ).grid(row=4, column=1, sticky="ew", padx=(4, 8), pady=6)
+
         ctk.CTkButton(action_panel, text="Settings", height=32,
                       font=ctk.CTkFont(size=12, weight="bold"),
                       command=self.show_settings
-                      ).grid(row=4, column=1, sticky="ew", padx=(4, 8), pady=6)
+                      ).grid(row=5, column=0, columnspan=2, sticky="ew", padx=8, pady=(6, 8))
 
     def _build_popup_footer(self, parent, message, button_text, button_color, hover_color,
                             text_color, command, wraplength=320):
@@ -1408,9 +1413,9 @@ class SkillUI:
                       ).grid(row=2, column=0, padx=4, pady=4, sticky="ew")
         final_action = ctk.CTkButton(
             action_frame,
-            text="Fight Boss" if active_boss else "Stats",
+            text="Fight Boss" if active_boss else "Insights",
             height=32,
-            command=self.open_boss_fight if active_boss else self.show_stats
+            command=self.open_boss_fight if active_boss else self.show_progression_insights
         )
         if active_boss:
             final_action.configure(fg_color="#8b0000", hover_color="#aa0000")
@@ -2213,6 +2218,235 @@ class SkillUI:
                       ).grid(row=0, column=1, padx=6, pady=10, sticky="ew")
         ctk.CTkButton(action_panel, text="Quests", height=34,
                       command=self.show_quests
+                      ).grid(row=0, column=2, padx=6, pady=10, sticky="ew")
+
+    def show_progression_insights(self):
+        self.clear_content()
+
+        for i in range(12):
+            self.task_container.grid_rowconfigure(i, weight=0)
+            self.task_container.grid_columnconfigure(i, weight=0)
+
+        self.task_container.grid_columnconfigure(0, weight=1)
+        self.task_container.grid_rowconfigure(2, weight=1)
+
+        player = self.db.get_player()
+        insights = self.db.get_progression_insights_summary()
+        required_oxp = self.get_required_oxp(player["level"])
+        top_skill = insights.get("top_skill") or {}
+
+        ctk.CTkLabel(self.task_container, text="Progression Insights",
+                     font=ctk.CTkFont(size=20, weight="bold")
+                     ).grid(row=0, column=0, sticky="w", padx=12, pady=(8, 2))
+        ctk.CTkLabel(
+            self.task_container,
+            text="Track the health of your task economy, quest pacing, combat growth, and long-term balance.",
+            text_color=UI_COLORS["text_muted"],
+            font=ctk.CTkFont(size=11)
+        ).grid(row=1, column=0, sticky="w", padx=12, pady=(0, 10))
+
+        insights_scroll = ctk.CTkScrollableFrame(
+            self.task_container,
+            fg_color="transparent",
+            corner_radius=0
+        )
+        insights_scroll.grid(row=2, column=0, sticky="nsew", padx=2, pady=(0, 4))
+        insights_scroll.grid_columnconfigure(0, weight=1)
+        insights_scroll.grid_columnconfigure(1, weight=1)
+
+        summary_frame = ctk.CTkFrame(insights_scroll, fg_color="transparent")
+        summary_frame.grid(row=0, column=0, columnspan=2, sticky="ew", padx=4, pady=(0, 4))
+        summary_frame.grid_columnconfigure(0, weight=1)
+        summary_frame.grid_columnconfigure(1, weight=1)
+        summary_frame.grid_columnconfigure(2, weight=1)
+
+        self._create_dashboard_card(
+            summary_frame,
+            "Economy Snapshot",
+            f"Gold on hand: {insights['player_gold']}\n"
+            f"Total earned: {insights['total_gold_earned']}\n"
+            f"Total spent: {insights['gold_spent']}\n"
+            f"Net balance: {insights['net_gold']}",
+            UI_COLORS["accent_gold"],
+            0, 0
+        )
+        self._create_dashboard_card(
+            summary_frame,
+            "Growth Pace",
+            f"Level: {player['level']}\n"
+            f"OXP now: {player['oxp']} / {required_oxp}\n"
+            f"All-time OXP earned: {insights['total_oxp_earned']}\n"
+            f"Quest share of OXP: {insights['quest_share_percent']}%",
+            UI_COLORS["accent_blue"],
+            0, 1
+        )
+        self._create_dashboard_card(
+            summary_frame,
+            "Combat Readiness",
+            f"HP: {player['current_hp']} / {player['max_hp']}\n"
+            f"Attack points: {insights['attack_points']}\n"
+            f"Damage per hit: {self.engine.get_attack_damage(player)}\n"
+            f"Bosses defeated: {insights['bosses_defeated']}",
+            UI_COLORS["accent_red"],
+            0, 2
+        )
+
+        left_panel = ctk.CTkFrame(insights_scroll, corner_radius=12, fg_color=UI_COLORS["panel"])
+        left_panel.grid(row=1, column=0, sticky="nsew", padx=(8, 4), pady=6)
+        left_panel.columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(left_panel, text="Task Engine",
+                     font=ctk.CTkFont(size=15, weight="bold")
+                     ).grid(row=0, column=0, sticky="w", padx=16, pady=(14, 8))
+
+        task_lines = [
+            f"Total tasks created: {insights['total_tasks']}",
+            f"Completed tasks: {insights['completed_tasks']}",
+            f"Pending tasks: {insights['pending_tasks']}",
+            f"Completion rate: {insights['completion_rate']}%",
+            f"Task-earned OXP: {insights['task_oxp_total']}",
+            f"Task-earned Gold: {insights['task_gold_total']}",
+            f"Task-earned ATK: {insights['task_attack_total']}",
+        ]
+        for row_index, line in enumerate(task_lines, start=1):
+            ctk.CTkLabel(left_panel, text=line,
+                         text_color="#dde7f2",
+                         justify="left",
+                         font=ctk.CTkFont(size=11)
+                         ).grid(row=row_index, column=0, sticky="w", padx=16, pady=3)
+
+        row_start = len(task_lines) + 1
+        ctk.CTkLabel(left_panel, text="Created Task Mix",
+                     text_color=UI_COLORS["accent_green"],
+                     font=ctk.CTkFont(size=12, weight="bold")
+                     ).grid(row=row_start, column=0, sticky="w", padx=16, pady=(10, 4))
+
+        task_mix = insights.get("task_mix") or []
+        if not task_mix:
+            ctk.CTkLabel(left_panel, text="No tasks created yet.",
+                         text_color=UI_COLORS["text_muted"],
+                         font=ctk.CTkFont(size=11)
+                         ).grid(row=row_start + 1, column=0, sticky="w", padx=16, pady=(0, 12))
+        else:
+            for offset, mix in enumerate(task_mix[:3], start=1):
+                ctk.CTkLabel(left_panel,
+                             text=f"{mix['difficulty'].title()}: {mix['count']} task(s)",
+                             text_color="#dde7f2",
+                             font=ctk.CTkFont(size=11)
+                             ).grid(row=row_start + offset, column=0, sticky="w", padx=16, pady=2)
+
+        right_panel = ctk.CTkFrame(insights_scroll, corner_radius=12, fg_color=UI_COLORS["panel"])
+        right_panel.grid(row=1, column=1, sticky="nsew", padx=(4, 8), pady=6)
+        right_panel.columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(right_panel, text="Quest and Combat Flow",
+                     font=ctk.CTkFont(size=15, weight="bold")
+                     ).grid(row=0, column=0, sticky="w", padx=16, pady=(14, 8))
+
+        flow_lines = [
+            f"Active quests: {insights['active_quests']}",
+            f"Completed quests: {insights['completed_quests']}",
+            f"Quest paths built: {insights['total_quest_paths']}",
+            f"Average linked tasks per quest: {insights['avg_linked_tasks']}",
+            f"Quest-earned OXP: {insights['quest_oxp_total']}",
+            f"Quest-earned Gold: {insights['quest_gold_total']}",
+            f"Quest-earned ATK: {insights['quest_attack_total']}",
+            f"Achievements unlocked: {insights['achievements_unlocked']}",
+        ]
+        for row_index, line in enumerate(flow_lines, start=1):
+            ctk.CTkLabel(right_panel, text=line,
+                         text_color="#dde7f2",
+                         justify="left",
+                         font=ctk.CTkFont(size=11)
+                         ).grid(row=row_index, column=0, sticky="w", padx=16, pady=3)
+
+        growth_panel = ctk.CTkFrame(insights_scroll, corner_radius=12, fg_color=UI_COLORS["panel"])
+        growth_panel.grid(row=2, column=0, sticky="nsew", padx=(8, 4), pady=6)
+        growth_panel.columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(growth_panel, text="Skill and Power Curve",
+                     font=ctk.CTkFont(size=15, weight="bold")
+                     ).grid(row=0, column=0, sticky="w", padx=16, pady=(14, 8))
+
+        growth_lines = [
+            f"Top skill: {top_skill.get('name', 'No skills yet')}",
+            f"Top skill level: {top_skill.get('level', 0)}",
+            f"Top skill carry XP: {top_skill.get('xp', 0)}",
+            f"Total skills tracked: {insights['total_skills']}",
+            f"Skills level 5+: {insights['skills_above_five']}",
+            f"Equipped armor: {player.get('armor_name', 'Cloth Armor')}",
+            f"Equipped sword: {player.get('sword_name', 'Training Sword')}",
+        ]
+        for row_index, line in enumerate(growth_lines, start=1):
+            ctk.CTkLabel(growth_panel, text=line,
+                         text_color="#dde7f2",
+                         justify="left",
+                         font=ctk.CTkFont(size=11)
+                         ).grid(row=row_index, column=0, sticky="w", padx=16, pady=3)
+
+        difficulty_panel = ctk.CTkFrame(insights_scroll, corner_radius=12, fg_color=UI_COLORS["panel"])
+        difficulty_panel.grid(row=2, column=1, sticky="nsew", padx=(4, 8), pady=6)
+        difficulty_panel.columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(difficulty_panel, text="Completed Difficulty Mix",
+                     font=ctk.CTkFont(size=15, weight="bold")
+                     ).grid(row=0, column=0, sticky="w", padx=16, pady=(14, 8))
+
+        diff_breakdown = insights.get("completed_difficulty_breakdown") or []
+        if not diff_breakdown:
+            ctk.CTkLabel(difficulty_panel,
+                         text="No completed tasks yet, so no difficulty pattern is available.",
+                         text_color=UI_COLORS["text_muted"],
+                         justify="left",
+                         font=ctk.CTkFont(size=11)
+                         ).grid(row=1, column=0, sticky="w", padx=16, pady=(0, 12))
+        else:
+            for row_index, item in enumerate(diff_breakdown, start=1):
+                row_card = ctk.CTkFrame(difficulty_panel, fg_color=UI_COLORS["card"], corner_radius=10)
+                row_card.grid(row=row_index, column=0, sticky="ew", padx=14, pady=5)
+                row_card.columnconfigure(0, weight=1)
+                ctk.CTkLabel(row_card, text=item["difficulty"].title(),
+                             font=ctk.CTkFont(size=11, weight="bold")
+                             ).grid(row=0, column=0, sticky="w", padx=12, pady=10)
+                ctk.CTkLabel(row_card, text=f"{item['count']} completion(s)",
+                             text_color=UI_COLORS["accent_blue"],
+                             font=ctk.CTkFont(size=11)
+                             ).grid(row=0, column=1, sticky="e", padx=12, pady=10)
+
+        notes_panel = ctk.CTkFrame(insights_scroll, corner_radius=12, fg_color=UI_COLORS["panel"])
+        notes_panel.grid(row=3, column=0, columnspan=2, sticky="ew", padx=8, pady=6)
+        notes_panel.columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(notes_panel, text="Balance Signals",
+                     font=ctk.CTkFont(size=15, weight="bold"),
+                     text_color=UI_COLORS["accent_gold"]
+                     ).grid(row=0, column=0, sticky="w", padx=16, pady=(14, 8))
+
+        for row_index, note in enumerate(insights.get("balance_notes", []), start=1):
+            ctk.CTkLabel(notes_panel, text=f"- {note}",
+                         justify="left",
+                         wraplength=780,
+                         text_color="#dde7f2",
+                         font=ctk.CTkFont(size=11)
+                         ).grid(row=row_index, column=0, sticky="w", padx=16, pady=3)
+
+        action_panel = ctk.CTkFrame(insights_scroll, corner_radius=12, fg_color=UI_COLORS["panel"])
+        action_panel.grid(row=4, column=0, columnspan=2, sticky="ew", padx=8, pady=(6, 10))
+        action_panel.grid_columnconfigure(0, weight=1)
+        action_panel.grid_columnconfigure(1, weight=1)
+        action_panel.grid_columnconfigure(2, weight=1)
+
+        ctk.CTkButton(action_panel, text="Dashboard", height=34,
+                      fg_color=UI_COLORS["accent_blue"],
+                      hover_color="#2e97db",
+                      text_color="#08131f",
+                      command=self.show_dashboard
+                      ).grid(row=0, column=0, padx=6, pady=10, sticky="ew")
+        ctk.CTkButton(action_panel, text="Weekly Review", height=34,
+                      command=self.show_weekly_review
+                      ).grid(row=0, column=1, padx=6, pady=10, sticky="ew")
+        ctk.CTkButton(action_panel, text="Stats", height=34,
+                      command=self.show_stats
                       ).grid(row=0, column=2, padx=6, pady=10, sticky="ew")
 
     def show_history(self):
