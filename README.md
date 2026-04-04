@@ -109,14 +109,3 @@ Difficulty multipliers: Easy ×0.8 / Medium ×1.0 / Hard ×1.5
 ---
 
 
-## About
-
-Built by a self-taught developer as a personal productivity tool and portfolio project. Started from scratch with no prior CS background — every feature was researched, debugged, and shipped one day at a time.
-
-> *"Discipline is doing what needs to be done even when you don't want to."*
-
----
-
-## License
-
-MIT License — free to use, modify, and distribute.
