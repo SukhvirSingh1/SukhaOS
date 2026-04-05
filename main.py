@@ -20,23 +20,31 @@ class SukhaOS:
     def __init__(self, root):
         self.root = root
         self.root.title("SukhaOS")
-        self.root.after(0, lambda:self.root.state("zoomed"))
+        self.root.after(0, lambda: self.root.state("zoomed"))
         self.root.minsize(1100, 600)
 
-        self.db       = Database()
+        self.db = Database()
         self.db.reset_tasks()
 
-        self.engine   = GameEngine(self.db)
+        self.engine = GameEngine(self.db)
         self.skill_ui = SkillUI(self.root, self.db, self.engine)
 
-        # Startup sequence: name → login reward → boss damage → boss alert
+        # Startup sequence: name -> onboarding -> login reward -> boss damage -> boss alert
         self.root.after(300, self.check_first_launch)
 
     def check_first_launch(self):
         """Show name setup on first launch."""
         player = self.db.get_player()
         if player["name"] == "Hero" or not player["name"]:
-            self.skill_ui.open_name_setup_popup(on_complete=self.check_login)
+            self.skill_ui.open_name_setup_popup(on_complete=self.check_onboarding)
+        else:
+            self.check_onboarding()
+
+    def check_onboarding(self):
+        """Show onboarding once for new players, then continue startup flow."""
+        player = self.db.get_player()
+        if not player.get("onboarding_seen"):
+            self.skill_ui.show_onboarding_flow(on_close=self.check_login)
         else:
             self.check_login()
 

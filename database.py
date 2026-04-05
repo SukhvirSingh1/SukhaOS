@@ -138,6 +138,7 @@ class Database:
             "ALTER TABLE player ADD COLUMN armor_bonus_hp INTEGER DEFAULT 0",
             "ALTER TABLE player ADD COLUMN sword_name TEXT DEFAULT 'Training Sword'",
             "ALTER TABLE player ADD COLUMN sword_bonus_damage INTEGER DEFAULT 0",
+            "ALTER TABLE player ADD COLUMN onboarding_seen INTEGER DEFAULT 0",
             "ALTER TABLE skill ADD COLUMN is_core INTEGER DEFAULT 0",
             "ALTER TABLE achievement ADD COLUMN category TEXT DEFAULT 'general'",
         ]
@@ -257,6 +258,7 @@ class Database:
             "armor_bonus_hp":    row[14] if len(row) > 14 and row[14] is not None else 0,
             "sword_name":        row[15] if len(row) > 15 and row[15] else "Training Sword",
             "sword_bonus_damage": row[16] if len(row) > 16 and row[16] is not None else 0,
+            "onboarding_seen":   bool(row[17]) if len(row) > 17 else False,
         }
 
     def update_player(self, player):
@@ -284,6 +286,11 @@ class Database:
     def set_player_name(self, name):
         cursor = self.conn.cursor()
         cursor.execute("UPDATE player SET name=? WHERE id=1", (name,))
+        self.conn.commit()
+
+    def set_onboarding_seen(self, seen=True):
+        cursor = self.conn.cursor()
+        cursor.execute("UPDATE player SET onboarding_seen=? WHERE id=1", (1 if seen else 0,))
         self.conn.commit()
 
     def update_hp(self, current_hp, max_hp):

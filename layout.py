@@ -1683,6 +1683,12 @@ class SkillUI:
         ctk.CTkButton(profile_card, text="Change Name", height=32,
                       command=self.open_change_name_popup
                       ).grid(row=2, column=0, sticky="w", padx=16, pady=(0,16))
+        ctk.CTkButton(profile_card, text="Replay Tutorial", height=30,
+                      fg_color=UI_COLORS["accent_blue"],
+                      hover_color="#2e97db",
+                      text_color="#08131f",
+                      command=self.show_onboarding_flow
+                      ).grid(row=3, column=0, sticky="w", padx=16, pady=(0,16))
 
         safety_card = ctk.CTkFrame(settings_scroll, corner_radius=12, fg_color=UI_COLORS["panel"])
         safety_card.grid(row=0, column=1, sticky="nsew", padx=(4,8), pady=6)
@@ -2519,6 +2525,145 @@ class SkillUI:
     # -------------------------------------------------------------------------
     # POPUPS
     # -------------------------------------------------------------------------
+
+    def show_onboarding_flow(self, on_close=None):
+        player = self.db.get_player()
+        popup = ctk.CTkToplevel(self.root)
+        popup.title("Getting Started")
+        popup.geometry("620x640")
+        popup.grab_set()
+        popup.resizable(False, False)
+        popup.grid_rowconfigure(1, weight=1)
+        popup.grid_columnconfigure(0, weight=1)
+
+        hero_name = player.get("name") or "Hero"
+
+        header = ctk.CTkFrame(popup, fg_color="transparent")
+        header.grid(row=0, column=0, sticky="ew", padx=24, pady=(22, 12))
+        header.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            header,
+            text=f"Welcome, {hero_name}",
+            text_color=UI_COLORS["accent_gold"],
+            font=ctk.CTkFont(size=22, weight="bold")
+        ).grid(row=0, column=0, sticky="w", pady=(0, 4))
+        ctk.CTkLabel(
+            header,
+            text="SukhaOS turns real-life consistency into visible in-game progress.",
+            text_color=UI_COLORS["text_muted"],
+            font=ctk.CTkFont(size=12)
+        ).grid(row=1, column=0, sticky="w")
+
+        content = ctk.CTkScrollableFrame(popup, fg_color="transparent", corner_radius=0)
+        content.grid(row=1, column=0, sticky="nsew", padx=12, pady=(0, 0))
+        content.grid_columnconfigure(0, weight=1)
+
+        sections = [
+            (
+                "Core Loop",
+                "1. Add a real-world task you want to finish.\n"
+                "2. Complete it inside the app after doing it in real life.\n"
+                "3. Earn OXP, gold, skill XP, and attack points.\n"
+                "4. Use that progress to level up, grow skills, and push your quests forward."
+            ),
+            (
+                "What Each Reward Means",
+                "OXP raises your character level over time.\n"
+                "Gold lets you buy stronger gear and skill boosts.\n"
+                "Skill XP grows areas like Mind, Health, and Strength.\n"
+                "Attack points power boss fights, so consistent task completion matters."
+            ),
+            (
+                "How To Use The App Well",
+                "Keep daily tasks small and realistic so you can build consistency.\n"
+                "Use quests for bigger self-improvement missions made of several tasks.\n"
+                "Check the dashboard to see what matters today.\n"
+                "Use Weekly Review and Insights to reflect and rebalance your progress."
+            ),
+            (
+                "Best First Session",
+                "Create 2 or 3 daily tasks you can definitely complete today.\n"
+                "Finish one task and collect the reward popup.\n"
+                "Open Quests when you want to group tasks into a bigger life goal.\n"
+                "Visit the shop only after you have earned some momentum."
+            ),
+        ]
+
+        for index, (title, body) in enumerate(sections):
+            card = ctk.CTkFrame(content, corner_radius=14, fg_color=UI_COLORS["panel"])
+            card.grid(row=index, column=0, sticky="ew", padx=10, pady=8)
+            card.columnconfigure(0, weight=1)
+
+            accent = ctk.CTkFrame(card, height=4, corner_radius=8, fg_color=(
+                UI_COLORS["accent_gold"] if index == 0 else
+                UI_COLORS["accent_blue"] if index == 1 else
+                UI_COLORS["accent_green"] if index == 2 else
+                UI_COLORS["accent_red"]
+            ))
+            accent.grid(row=0, column=0, sticky="ew", padx=16, pady=(14, 10))
+
+            ctk.CTkLabel(
+                card,
+                text=title,
+                font=ctk.CTkFont(size=15, weight="bold")
+            ).grid(row=1, column=0, sticky="w", padx=18, pady=(0, 6))
+            ctk.CTkLabel(
+                card,
+                text=body,
+                justify="left",
+                anchor="w",
+                wraplength=520,
+                text_color="#dde7f2",
+                font=ctk.CTkFont(size=11)
+            ).grid(row=2, column=0, sticky="w", padx=18, pady=(0, 16))
+
+        footer = ctk.CTkFrame(popup, fg_color="#171a24", corner_radius=12)
+        footer.grid(row=2, column=0, sticky="ew", padx=18, pady=14)
+        footer.grid_columnconfigure(0, weight=1)
+        footer.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            footer,
+            text="Start with a few realistic tasks. Consistency is the real win condition.",
+            text_color="#b8c4d6",
+            wraplength=500,
+            justify="left",
+            font=ctk.CTkFont(size=11)
+        ).grid(row=0, column=0, columnspan=2, sticky="w", padx=16, pady=(12, 8))
+
+        def finish_onboarding(open_tasks=False):
+            self.db.set_onboarding_seen(True)
+            popup.destroy()
+            self.show_dashboard()
+            if open_tasks:
+                self.switch_menu("daily")
+            if on_close:
+                on_close()
+
+        popup.protocol("WM_DELETE_WINDOW", finish_onboarding)
+
+        ctk.CTkButton(
+            footer,
+            text="Open Daily Tasks",
+            height=38,
+            fg_color=UI_COLORS["accent_green"],
+            hover_color="#34b564",
+            text_color="#0b1a12",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            command=lambda: finish_onboarding(open_tasks=True)
+        ).grid(row=1, column=0, sticky="ew", padx=(16, 8), pady=(0, 14))
+
+        ctk.CTkButton(
+            footer,
+            text="Go To Dashboard",
+            height=38,
+            fg_color=UI_COLORS["accent_blue"],
+            hover_color="#2e97db",
+            text_color="#08131f",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            command=finish_onboarding
+        ).grid(row=1, column=1, sticky="ew", padx=(8, 16), pady=(0, 14))
 
     def open_name_setup_popup(self, on_complete=None):
         popup = ctk.CTkToplevel(self.root)
