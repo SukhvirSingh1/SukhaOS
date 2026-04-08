@@ -11,7 +11,6 @@ from game_engine import GameEngine
 from layout import SkillUI
 
 # --- CustomTkinter global appearance settings ---
-# Must be set before any CTK widgets are created
 ctk.set_appearance_mode("dark")       # dark mode
 ctk.set_default_color_theme("dark-blue")  # dark-blue accent colours
 

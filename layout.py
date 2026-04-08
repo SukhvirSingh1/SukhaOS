@@ -1244,6 +1244,114 @@ class SkillUI:
                      ).grid(row=2, column=0, sticky="w", padx=16, pady=(0,14))
         return card
 
+    def _build_todays_plan(self, player, pending_daily, tasks_today, active_quests, active_boss):
+        plan = []
+
+        if pending_daily:
+            next_task = pending_daily[0]
+            plan.append({
+                "title": "Start With Your Easiest Win",
+                "body": f"Complete '{next_task['title']}' first so you build momentum early.",
+                "button": "Open Daily Tasks",
+                "command": lambda: self.switch_menu("daily"),
+                "accent": UI_COLORS["accent_green"],
+            })
+        else:
+            plan.append({
+                "title": "Daily Loop Cleared",
+                "body": "Your daily tasks are complete. Use the extra space to review progress or push a quest forward.",
+                "button": "Weekly Review",
+                "command": self.show_weekly_review,
+                "accent": UI_COLORS["accent_blue"],
+            })
+
+        if active_quests:
+            closest_quest = max(active_quests, key=lambda quest: quest.get("progress", {}).get("ratio", 0))
+            progress = closest_quest.get("progress") or {"progress_value": 0, "target_value": 1, "ratio": 0}
+            ratio = progress.get("ratio", 0)
+            if ratio >= 0.75:
+                quest_body = (
+                    f"'{closest_quest['title']}' is almost done at "
+                    f"{progress['progress_value']} / {progress['target_value']}. A small push could finish it today."
+                )
+            else:
+                quest_body = (
+                    f"'{closest_quest['title']}' is your strongest active mission at "
+                    f"{progress['progress_value']} / {progress['target_value']}."
+                )
+            plan.append({
+                "title": "Quest Pressure",
+                "body": quest_body,
+                "button": "Open Quests",
+                "command": self.show_quests,
+                "accent": UI_COLORS["accent_gold"],
+            })
+        else:
+            plan.append({
+                "title": "Create A Bigger Mission",
+                "body": "You have no active quests right now. Group related tasks into one quest to make your progress feel more meaningful.",
+                "button": "Create Quest",
+                "command": self.show_quests,
+                "accent": UI_COLORS["accent_gold"],
+            })
+
+        if active_boss and player["attack_points"] > 0:
+            boss_body = (
+                f"{active_boss['name']} is active, and you already have {player['attack_points']} attack points ready for a fight."
+            )
+            boss_button = "Fight Boss"
+            boss_command = self.open_boss_fight
+            boss_accent = UI_COLORS["accent_red"]
+        elif active_boss:
+            boss_body = (
+                f"{active_boss['name']} is active, but you need more attack points before the fight feels worthwhile."
+            )
+            boss_button = "Complete Tasks"
+            boss_command = lambda: self.switch_menu("daily")
+            boss_accent = UI_COLORS["accent_red"]
+        elif tasks_today == 0:
+            boss_body = "No boss pressure right now. One completed task today will restart your momentum and move every system forward."
+            boss_button = "Do First Task"
+            boss_command = lambda: self.switch_menu("daily")
+            boss_accent = UI_COLORS["accent_blue"]
+        else:
+            boss_body = "You already moved the day forward. Check your Insights screen if you want a smarter look at your pacing."
+            boss_button = "Open Insights"
+            boss_command = self.show_progression_insights
+            boss_accent = UI_COLORS["accent_blue"]
+
+        plan.append({
+            "title": "Coach Callout",
+            "body": boss_body,
+            "button": boss_button,
+            "command": boss_command,
+            "accent": boss_accent,
+        })
+
+        return plan[:3]
+
+    def _create_todays_plan_card(self, parent, step, row):
+        card = ctk.CTkFrame(parent, corner_radius=10, fg_color=UI_COLORS["card"])
+        card.grid(row=row, column=0, sticky="ew", padx=14, pady=6)
+        card.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkFrame(card, height=4, fg_color=step["accent"], corner_radius=8
+                     ).grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 8))
+        ctk.CTkLabel(card, text=step["title"],
+                     text_color=step["accent"],
+                     font=ctk.CTkFont(size=12, weight="bold")
+                     ).grid(row=1, column=0, sticky="w", padx=14, pady=(0, 4))
+        ctk.CTkLabel(card, text=step["body"],
+                     justify="left",
+                     wraplength=360,
+                     text_color="#dde7f2",
+                     font=ctk.CTkFont(size=11)
+                     ).grid(row=2, column=0, sticky="w", padx=14, pady=(0, 10))
+        ctk.CTkButton(card, text=step["button"], height=30,
+                      command=step["command"]
+                      ).grid(row=3, column=0, sticky="ew", padx=14, pady=(0, 14))
+        return card
+
     def show_dashboard(self):
         self.clear_content()
 
@@ -1271,6 +1379,9 @@ class SkillUI:
         active_boss = self.db.get_active_boss()
         next_boss_level, next_boss_tier = self._get_next_boss_milestone(player["level"])
         required_oxp = self.get_required_oxp(player["level"])
+        todays_plan = self._build_todays_plan(
+            player, pending_daily, tasks_today, active_quests, active_boss
+        )
 
         ctk.CTkLabel(self.task_container, text="Command Center",
                      font=ctk.CTkFont(size=20, weight="bold")
@@ -1360,13 +1471,31 @@ class SkillUI:
                 bar.set(progress["ratio"])
                 bar.grid(row=2, column=0, sticky="ew", padx=12, pady=(6,10))
 
-        side_panel = ctk.CTkFrame(lower_frame, corner_radius=12, fg_color=UI_COLORS["panel"])
+        side_panel = ctk.CTkScrollableFrame(
+            lower_frame,
+            corner_radius=12,
+            fg_color=UI_COLORS["panel"]
+        )
         side_panel.grid(row=0, column=1, sticky="nsew", padx=(8,0), pady=(4,0))
         side_panel.columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(side_panel, text="Progress Snapshot",
+        ctk.CTkLabel(side_panel, text="Today's Plan",
                      font=ctk.CTkFont(size=15, weight="bold")
                      ).grid(row=0, column=0, sticky="w", padx=16, pady=(14,6))
+
+        if not todays_plan:
+            ctk.CTkLabel(side_panel,
+                         text="No recommendation yet. Add a task to give the dashboard something to guide.",
+                         text_color="#aaaaaa",
+                         font=ctk.CTkFont(size=11)
+                         ).grid(row=1, column=0, sticky="w", padx=16, pady=(4,12))
+        else:
+            for index, step in enumerate(todays_plan, start=1):
+                self._create_todays_plan_card(side_panel, step, index)
+
+        ctk.CTkLabel(side_panel, text="Progress Snapshot",
+                     font=ctk.CTkFont(size=15, weight="bold")
+                     ).grid(row=5, column=0, sticky="w", padx=16, pady=(10,6))
         snapshot = [
             f"Level: {player['level']}",
             f"OXP: {player['oxp']} / {required_oxp}",
@@ -1375,7 +1504,7 @@ class SkillUI:
             f"Damage per hit: {self.engine.get_attack_damage(player)}",
             f"Gear: {player.get('armor_name', 'Cloth Armor')} | {player.get('sword_name', 'Training Sword')}",
         ]
-        for row_index, line in enumerate(snapshot, start=1):
+        for row_index, line in enumerate(snapshot, start=6):
             ctk.CTkLabel(side_panel, text=line,
                          text_color="#dddddd",
                          font=ctk.CTkFont(size=11)
@@ -1383,10 +1512,10 @@ class SkillUI:
 
         ctk.CTkLabel(side_panel, text="Quick Actions",
                      font=ctk.CTkFont(size=14, weight="bold")
-                     ).grid(row=8, column=0, sticky="w", padx=16, pady=(16,8))
+                     ).grid(row=12, column=0, sticky="w", padx=16, pady=(16,8))
 
         action_frame = ctk.CTkFrame(side_panel, fg_color="transparent")
-        action_frame.grid(row=9, column=0, sticky="ew", padx=12, pady=(0,14))
+        action_frame.grid(row=13, column=0, sticky="ew", padx=12, pady=(0,14))
         action_frame.grid_columnconfigure(0, weight=1)
         action_frame.grid_columnconfigure(1, weight=1)
 
