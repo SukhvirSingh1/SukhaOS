@@ -1355,13 +1355,12 @@ class SkillUI:
     def show_dashboard(self):
         self.clear_content()
 
-        for i in range(8):
+        for i in range(10):
             self.task_container.grid_rowconfigure(i, weight=0)
             self.task_container.grid_columnconfigure(i, weight=0)
 
         self.task_container.grid_columnconfigure(0, weight=1)
-        self.task_container.grid_columnconfigure(1, weight=1)
-        self.task_container.grid_rowconfigure(3, weight=1)
+        self.task_container.grid_rowconfigure(2, weight=1)
 
         player = self.db.get_player()
         daily_tasks = self.db.get_tasks_by_period("daily")
@@ -1391,10 +1390,18 @@ class SkillUI:
             text="See what matters today and jump straight into meaningful progress.",
             text_color="#aaaaaa",
             font=ctk.CTkFont(size=11)
-        ).grid(row=1, column=0, columnspan=2, pady=(0,8))
+        ).grid(row=1, column=0, pady=(0,8))
 
-        summary_frame = ctk.CTkFrame(self.task_container, fg_color="transparent")
-        summary_frame.grid(row=2, column=0, columnspan=2, sticky="nsew", padx=4)
+        dashboard_scroll = ctk.CTkScrollableFrame(
+            self.task_container,
+            fg_color="transparent",
+            corner_radius=0
+        )
+        dashboard_scroll.grid(row=2, column=0, sticky="nsew", padx=2, pady=(0, 4))
+        dashboard_scroll.grid_columnconfigure(0, weight=1)
+
+        summary_frame = ctk.CTkFrame(dashboard_scroll, fg_color="transparent")
+        summary_frame.grid(row=0, column=0, sticky="ew", padx=4, pady=(0, 4))
         summary_frame.grid_columnconfigure(0, weight=1)
         summary_frame.grid_columnconfigure(1, weight=1)
         summary_frame.grid_columnconfigure(2, weight=1)
@@ -1432,8 +1439,8 @@ class SkillUI:
             0, 2
         )
 
-        lower_frame = ctk.CTkFrame(self.task_container, fg_color="transparent")
-        lower_frame.grid(row=3, column=0, columnspan=2, sticky="nsew")
+        lower_frame = ctk.CTkFrame(dashboard_scroll, fg_color="transparent")
+        lower_frame.grid(row=1, column=0, sticky="nsew")
         lower_frame.grid_columnconfigure(0, weight=3)
         lower_frame.grid_columnconfigure(1, weight=2)
         lower_frame.grid_rowconfigure(0, weight=1)
