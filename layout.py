@@ -7,7 +7,7 @@ Fully migrated to CustomTkinter for a modern dark UI.
 
 import customtkinter as ctk
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import filedialog, messagebox
 import matplotlib.pyplot as plt
 from heatmap import show_heatmap
 
@@ -1861,8 +1861,47 @@ class SkillUI:
                       command=self.export_progress
                       ).grid(row=0, column=1, padx=4, pady=4, sticky="ew")
 
+        restore_card = ctk.CTkFrame(settings_scroll, corner_radius=12, fg_color=UI_COLORS["panel"])
+        restore_card.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=8, pady=(6, 8))
+        restore_card.columnconfigure(0, weight=1)
+
+        backups = self.db.list_backups()
+        latest_backup = backups[0] if backups else None
+        latest_backup_name = latest_backup.split("\\")[-1] if latest_backup else "No backups found yet"
+
+        ctk.CTkLabel(restore_card, text="Restore Progress",
+                     font=ctk.CTkFont(size=15, weight="bold"),
+                     text_color=UI_COLORS["accent_blue"]
+                     ).grid(row=0, column=0, sticky="w", padx=16, pady=(14, 6))
+        ctk.CTkLabel(
+            restore_card,
+            text=(
+                "Recover your game from a database backup. "
+                f"Latest backup: {latest_backup_name}"
+            ),
+            wraplength=760,
+            justify="left",
+            text_color="#dde7f2",
+            font=ctk.CTkFont(size=11)
+        ).grid(row=1, column=0, sticky="w", padx=16, pady=(0, 12))
+
+        restore_actions = ctk.CTkFrame(restore_card, fg_color="transparent")
+        restore_actions.grid(row=2, column=0, sticky="ew", padx=12, pady=(0, 16))
+        restore_actions.grid_columnconfigure(0, weight=1)
+        restore_actions.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkButton(restore_actions, text="Restore Latest Backup", height=34,
+                      fg_color=UI_COLORS["accent_blue"],
+                      hover_color="#2e97db",
+                      text_color="#08131f",
+                      command=self.restore_latest_backup
+                      ).grid(row=0, column=0, sticky="ew", padx=4, pady=4)
+        ctk.CTkButton(restore_actions, text="Choose Backup File", height=34,
+                      command=self.restore_from_backup_file
+                      ).grid(row=0, column=1, sticky="ew", padx=4, pady=4)
+
         reset_card = ctk.CTkFrame(settings_scroll, corner_radius=12, fg_color=UI_COLORS["panel"])
-        reset_card.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=8, pady=(6,8))
+        reset_card.grid(row=2, column=0, columnspan=2, sticky="nsew", padx=8, pady=(6,8))
         reset_card.columnconfigure(0, weight=1)
 
         ctk.CTkLabel(reset_card, text="Danger Zone",
@@ -3337,6 +3376,58 @@ class SkillUI:
             messagebox.showinfo("Export Complete", f"Progress summary exported to:\n{export_path}")
         except Exception as exc:
             messagebox.showerror("Export Failed", f"Could not export progress.\n\n{exc}")
+
+    def _complete_restore(self, backup_path):
+        restored_from = self.db.restore_database(backup_path)
+        self.refresh_player_ui()
+        self.refresh_skill_ui()
+        self._update_boss_ui()
+        self.show_settings()
+        messagebox.showinfo(
+            "Restore Complete",
+            f"Progress restored successfully.\n\nRecovered from:\n{restored_from}"
+        )
+
+    def restore_latest_backup(self):
+        backups = self.db.list_backups()
+        if not backups:
+            messagebox.showwarning("No Backups", "No backup files were found in the backups folder yet.")
+            return
+
+        latest_backup = backups[0]
+        confirm = messagebox.askyesno(
+            "Restore Latest Backup",
+            "This will replace your current progress with the most recent backup.\n\n"
+            f"Backup file:\n{latest_backup}\n\nContinue?"
+        )
+        if not confirm:
+            return
+
+        try:
+            self._complete_restore(latest_backup)
+        except Exception as exc:
+            messagebox.showerror("Restore Failed", f"Could not restore the backup.\n\n{exc}")
+
+    def restore_from_backup_file(self):
+        backup_path = filedialog.askopenfilename(
+            title="Select Backup Database",
+            filetypes=[("Database Files", "*.db"), ("All Files", "*.*")]
+        )
+        if not backup_path:
+            return
+
+        confirm = messagebox.askyesno(
+            "Restore Backup",
+            "This will replace your current progress with the selected backup file.\n\n"
+            f"Backup file:\n{backup_path}\n\nContinue?"
+        )
+        if not confirm:
+            return
+
+        try:
+            self._complete_restore(backup_path)
+        except Exception as exc:
+            messagebox.showerror("Restore Failed", f"Could not restore the backup.\n\n{exc}")
 
     def reset_all_progress(self):
         confirm = messagebox.askyesno(

@@ -1087,6 +1087,31 @@ class Database:
         shutil.copy2(self.db_name, backup_path)
         return backup_path
 
+    def list_backups(self, backup_dir="backups"):
+        os.makedirs(backup_dir, exist_ok=True)
+        backups = []
+        for name in os.listdir(backup_dir):
+            if not name.lower().endswith(".db"):
+                continue
+            full_path = os.path.abspath(os.path.join(backup_dir, name))
+            if os.path.isfile(full_path):
+                backups.append(full_path)
+        backups.sort(key=os.path.getmtime, reverse=True)
+        return backups
+
+    def restore_database(self, backup_path):
+        if not backup_path or not os.path.exists(backup_path):
+            raise FileNotFoundError("Backup file not found.")
+        if os.path.abspath(backup_path) == os.path.abspath(self.db_name):
+            raise ValueError("Backup path cannot be the active database file.")
+
+        self.conn.commit()
+        self.conn.close()
+        shutil.copy2(backup_path, self.db_name)
+        self.conn = sqlite3.connect(self.db_name)
+        self.create_tables()
+        return os.path.abspath(backup_path)
+
     def export_progress_summary(self, export_dir="exports"):
         os.makedirs(export_dir, exist_ok=True)
 
