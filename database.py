@@ -1107,9 +1107,15 @@ class Database:
 
         self.conn.commit()
         self.conn.close()
-        shutil.copy2(backup_path, self.db_name)
-        self.conn = sqlite3.connect(self.db_name)
-        self.create_tables()
+        try:
+            shutil.copy2(backup_path, self.db_name)
+            self.conn = sqlite3.connect(self.db_name)
+            self.create_tables()
+        except Exception:
+            # Always reopen the current database connection so the app does not
+            # stay stuck with a closed connection if restore fails midway.
+            self.conn = sqlite3.connect(self.db_name)
+            raise
         return os.path.abspath(backup_path)
 
     def export_progress_summary(self, export_dir="exports"):

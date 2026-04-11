@@ -3366,6 +3366,7 @@ class SkillUI:
     def create_backup(self):
         try:
             backup_path = self.db.backup_database()
+            self.show_settings()
             messagebox.showinfo("Backup Created", f"Database backup saved to:\n{backup_path}")
         except Exception as exc:
             messagebox.showerror("Backup Failed", f"Could not create backup.\n\n{exc}")
