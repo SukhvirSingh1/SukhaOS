@@ -856,6 +856,8 @@ class SkillUI:
             self._update_boss_ui()
             self.refresh_player_ui()
 
+        popup.protocol("WM_DELETE_WINDOW", on_close)
+
         ctk.CTkButton(btn_frame, text="⚔️ Fight Now",
                       fg_color="#8b0000", hover_color="#aa0000",
                       text_color="#ffcc00",
@@ -897,6 +899,8 @@ class SkillUI:
             self.refresh_player_ui()
             if on_close:
                 on_close()
+
+        popup.protocol("WM_DELETE_WINDOW", close)
 
         ctk.CTkButton(btn_frame, text="⚔️ Fight Now",
                       fg_color="#8b0000", hover_color="#aa0000",
@@ -2870,6 +2874,7 @@ class SkillUI:
             if on_complete:
                 on_complete()
 
+        popup.protocol("WM_DELETE_WINDOW", lambda: None)
         name_entry.bind("<Return>", lambda e: save_name())
         ctk.CTkButton(popup, text="Save Name", height=36,
                       text_color="#ffcc00",
@@ -3754,6 +3759,7 @@ class SkillUI:
             if on_close:
                 on_close()
 
+        popup.protocol("WM_DELETE_WINDOW", claim)
         ctk.CTkButton(popup, text="Claim Reward", height=36,
                       text_color="#ffcc00", font=ctk.CTkFont(size=13, weight="bold"),
                       command=claim).pack(pady=10)
