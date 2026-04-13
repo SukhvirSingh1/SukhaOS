@@ -366,7 +366,7 @@ class SkillUI:
     # RICH REWARD POPUPS
     # -------------------------------------------------------------------------
 
-    def show_task_reward_popup(self, result):
+    def show_task_reward_popup(self, result, on_close=None):
         """
         Show a rich popup after task completion showing everything earned.
         Includes base rewards, skill XP, streak info.
@@ -451,6 +451,12 @@ class SkillUI:
 
         footer_host = ctk.CTkFrame(popup, fg_color="transparent")
         footer_host.grid(row=1, column=0, sticky="ew")
+        def close_popup():
+            popup.destroy()
+            if on_close:
+                on_close()
+
+        popup.protocol("WM_DELETE_WINDOW", close_popup)
         self._build_popup_footer(
             footer_host,
             "Rewards added to your hero. Collect and move to your next mission.",
@@ -458,10 +464,10 @@ class SkillUI:
             UI_COLORS["accent_green"],
             "#34b564",
             "#0b1a12",
-            popup.destroy
+            close_popup
         )
 
-    def show_quest_complete_popup(self, quest):
+    def show_quest_complete_popup(self, quest, on_close=None):
         popup = ctk.CTkToplevel(self.root)
         popup.title("Quest Complete!")
         popup.geometry("380x320")
@@ -498,6 +504,12 @@ class SkillUI:
                          font=ctk.CTkFont(size=13, weight="bold")
                          ).pack(anchor="w", padx=16, pady=4)
 
+        def close_popup():
+            popup.destroy()
+            if on_close:
+                on_close()
+
+        popup.protocol("WM_DELETE_WINDOW", close_popup)
         self._build_popup_footer(
             popup,
             "Quest rewards are now ready in your progression path.",
@@ -505,11 +517,11 @@ class SkillUI:
             UI_COLORS["accent_blue"],
             "#2e97db",
             "#08131f",
-            popup.destroy,
+            close_popup,
             wraplength=300
         )
 
-    def show_level_up_popup(self, level_event):
+    def show_level_up_popup(self, level_event, on_close=None):
         """
         Show a big celebration popup for character level up.
         One popup per level gained.
@@ -554,6 +566,12 @@ class SkillUI:
                      font=ctk.CTkFont(size=11)
                      ).pack(pady=(0,12))
 
+        def close_popup():
+            popup.destroy()
+            if on_close:
+                on_close()
+
+        popup.protocol("WM_DELETE_WINDOW", close_popup)
         self._build_popup_footer(
             popup,
             "Your hero is stronger now. Step back in and use the new power well.",
@@ -561,10 +579,10 @@ class SkillUI:
             "#2a2d3a",
             "#363a4a",
             "#ffcc00",
-            popup.destroy
+            close_popup
         )
 
-    def show_skill_level_up_popup(self, skill_event):
+    def show_skill_level_up_popup(self, skill_event, on_close=None):
         """
         Show a popup when a skill levels up.
         One popup per skill that leveled up.
@@ -614,6 +632,12 @@ class SkillUI:
                      font=ctk.CTkFont(size=11)
                      ).pack(pady=(0,16))
 
+        def close_popup():
+            popup.destroy()
+            if on_close:
+                on_close()
+
+        popup.protocol("WM_DELETE_WINDOW", close_popup)
         self._build_popup_footer(
             popup,
             "Your skill growth is locked in. Keep practicing to push the next level.",
@@ -621,10 +645,10 @@ class SkillUI:
             "#1f3a30",
             "#285042",
             "#00ff88",
-            popup.destroy
+            close_popup
         )
 
-    def show_achievement_unlock_popup(self, title):
+    def show_achievement_unlock_popup(self, title, on_close=None):
         """
         Show a popup for a single newly unlocked achievement.
         """
@@ -677,6 +701,12 @@ class SkillUI:
                      font=ctk.CTkFont(size=10)
                      ).pack(pady=(0,8))
 
+        def close_popup():
+            popup.destroy()
+            if on_close:
+                on_close()
+
+        popup.protocol("WM_DELETE_WINDOW", close_popup)
         self._build_popup_footer(
             popup,
             "Another milestone is now part of your story. Keep stacking these wins.",
@@ -684,7 +714,7 @@ class SkillUI:
             "#3b3220",
             "#4c4128",
             "#ffd700",
-            popup.destroy
+            close_popup
         )
 
     def show_boss_victory_popup(self, result):
@@ -796,11 +826,7 @@ class SkillUI:
         def show_next(index):
             if index >= len(popups):
                 return
-            # Wait for previous popup to close by checking after 200ms
-            popups[index]()
-            # Chain: after this popup is created, monitor for it to close
-            # then show the next one
-            self.root.after(500, lambda: show_next(index + 1))
+            popups[index](lambda: show_next(index + 1))
 
         show_next(0)
 
@@ -822,7 +848,7 @@ class SkillUI:
             self.boss_alert_label.configure(text="")
             self.boss_btn.grid_remove()
 
-    def show_boss_alert(self, boss):
+    def show_boss_alert(self, boss, on_close=None):
         tier_colors = {"easy":"#ff8800","medium":"#ff4400","hard":"#ff0000"}
         tier_labels = {"easy":"EASY","medium":"MEDIUM","hard":"HARD ☠️"}
 
@@ -851,21 +877,29 @@ class SkillUI:
         btn_frame = ctk.CTkFrame(popup, fg_color="transparent")
         btn_frame.pack(pady=12)
 
-        def on_close():
+        def close_popup():
             popup.destroy()
             self._update_boss_ui()
             self.refresh_player_ui()
+            if on_close:
+                on_close()
 
-        popup.protocol("WM_DELETE_WINDOW", on_close)
+        def fight_now():
+            popup.destroy()
+            self.open_boss_fight()
+            if on_close:
+                on_close()
+
+        popup.protocol("WM_DELETE_WINDOW", close_popup)
 
         ctk.CTkButton(btn_frame, text="⚔️ Fight Now",
                       fg_color="#8b0000", hover_color="#aa0000",
                       text_color="#ffcc00",
                       font=ctk.CTkFont(size=12, weight="bold"),
-                      command=lambda: [popup.destroy(), self.open_boss_fight()]
+                      command=fight_now
                       ).pack(side="left", padx=10)
         ctk.CTkButton(btn_frame, text="Not Yet",
-                      font=ctk.CTkFont(size=11), command=on_close
+                      font=ctk.CTkFont(size=11), command=close_popup
                       ).pack(side="right", padx=10)
 
     def show_boss_damage_warning(self, damage_info, on_close=None):
@@ -3518,37 +3552,37 @@ class SkillUI:
         popup_queue = []
 
         # 1. Task reward popup
-        popup_queue.append(lambda r=result: self.show_task_reward_popup(r))
+        popup_queue.append(lambda next_step, r=result: self.show_task_reward_popup(r, on_close=next_step))
 
         # 2. Skill level up popups (one per skill that leveled)
         for skill_event in result.get("skill_events", []):
             if skill_event["leveled_up"]:
                 popup_queue.append(
-                    lambda se=skill_event: self.show_skill_level_up_popup(se)
+                    lambda next_step, se=skill_event: self.show_skill_level_up_popup(se, on_close=next_step)
                 )
 
         # 3. Character level up popups (one per level gained)
         for level_event in result.get("level_events", []):
             popup_queue.append(
-                lambda le=level_event: self.show_level_up_popup(le)
+                lambda next_step, le=level_event: self.show_level_up_popup(le, on_close=next_step)
             )
 
         # 4. Achievement popups (one per achievement)
         for title in result.get("newly_unlocked", []):
             popup_queue.append(
-                lambda t=title: self.show_achievement_unlock_popup(t)
+                lambda next_step, t=title: self.show_achievement_unlock_popup(t, on_close=next_step)
             )
 
         # 5. Quest completion popups
         for quest in result.get("quest_events", []):
             popup_queue.append(
-                lambda q=quest: self.show_quest_complete_popup(q)
+                lambda next_step, q=quest: self.show_quest_complete_popup(q, on_close=next_step)
             )
 
         # 6. Boss spawn alert
         if result.get("boss"):
             popup_queue.append(
-                lambda b=result["boss"]: self.show_boss_alert(b)
+                lambda next_step, b=result["boss"]: self.show_boss_alert(b, on_close=next_step)
             )
 
         # Show all in sequence
