@@ -886,6 +886,7 @@ class SkillUI:
 
         def fight_now():
             popup.destroy()
+            self.refresh_player_ui()
             self.open_boss_fight()
             if on_close:
                 on_close()
@@ -934,13 +935,20 @@ class SkillUI:
             if on_close:
                 on_close()
 
+        def fight_now():
+            popup.destroy()
+            self.refresh_player_ui()
+            self.open_boss_fight()
+            if on_close:
+                on_close()
+
         popup.protocol("WM_DELETE_WINDOW", close)
 
         ctk.CTkButton(btn_frame, text="⚔️ Fight Now",
                       fg_color="#8b0000", hover_color="#aa0000",
                       text_color="#ffcc00",
                       font=ctk.CTkFont(size=12, weight="bold"),
-                      command=lambda: [popup.destroy(), self.open_boss_fight()]
+                      command=fight_now
                       ).pack(side="left", padx=10)
         ctk.CTkButton(btn_frame, text="OK",
                       font=ctk.CTkFont(size=11), command=close
@@ -956,6 +964,11 @@ class SkillUI:
         fight.title(f"Boss Fight — {boss['name']}")
         fight.state("zoomed")
         fight.grab_set()
+
+        def close_fight():
+            fight.destroy()
+            self._update_boss_ui()
+            self.refresh_player_ui()
 
         tier_colors = {"easy":"#ff8800","medium":"#ff4400","hard":"#ff0000"}
         tier_color  = tier_colors.get(boss["tier"],"#ff0000")
@@ -1030,7 +1043,7 @@ class SkillUI:
                      text_color="#ff6666", font=ctk.CTkFont(size=11)
                      ).grid(row=10, column=0, sticky="w", padx=20, pady=(0,4))
         ctk.CTkLabel(stats_frame,
-                     text="Near death penalty: -50 gold, -20 ATK points",
+                     text="Near death penalty: up to -50 gold, up to -20 ATK points",
                      text_color="#888888", font=ctk.CTkFont(size=10)
                      ).grid(row=11, column=0, sticky="w", padx=20, pady=(0,12))
 
@@ -1075,8 +1088,13 @@ class SkillUI:
                 return
 
             if result["player_near_death"]:
+                gold_penalty = result.get("gold_penalty", 0)
+                atk_penalty = result.get("atk_penalty", 0)
                 combat_log.configure(
-                    text=f"You dealt {result['player_damage']} dmg! NEAR DEATH — HP=1, lost 50 gold & 20 ATK!",
+                    text=(
+                        f"You dealt {result['player_damage']} dmg! NEAR DEATH — HP=1, "
+                        f"lost {gold_penalty} gold and {atk_penalty} ATK."
+                    ),
                     text_color="#ff4444"
                 )
             else:
@@ -1097,8 +1115,9 @@ class SkillUI:
         ctk.CTkButton(fight, text="Flee (come back later)",
                       fg_color="transparent", hover_color="#333333",
                       text_color="#aaaaaa", font=ctk.CTkFont(size=11),
-                      command=fight.destroy
+                      command=close_fight
                       ).pack(pady=(0,16))
+        fight.protocol("WM_DELETE_WINDOW", close_fight)
 
     # -------------------------------------------------------------------------
     # SKILL PANEL
@@ -3807,6 +3826,12 @@ class SkillUI:
 
     def get_required_sxp(self, level):
         return 50 + (level-1) * 25
+
+
+
+
+
+
 
 
 

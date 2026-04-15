@@ -245,6 +245,8 @@ class GameEngine:
         near_death          = False
         rewards             = None
         newly_unlocked      = []
+        gold_penalty        = 0
+        atk_penalty         = 0
 
         if new_player_hp <= 0:
             new_player_hp           = 1
@@ -289,6 +291,8 @@ class GameEngine:
             "player_hp":         new_player_hp,
             "boss_defeated":     boss_defeated,
             "player_near_death": near_death,
+            "gold_penalty":      gold_penalty,
+            "atk_penalty":       atk_penalty,
             "rewards":           rewards,
             "attack_points":     player["attack_points"],
             "newly_unlocked":    newly_unlocked,
