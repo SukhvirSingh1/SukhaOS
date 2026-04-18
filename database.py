@@ -122,6 +122,29 @@ class Database:
                 taunt TEXT
             )
         ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS daily_focus (
+                focus_date TEXT PRIMARY KEY,
+                streak INTEGER DEFAULT 0,
+                completed INTEGER DEFAULT 0,
+                claimed INTEGER DEFAULT 0,
+                completed_at TEXT
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS daily_focus_item (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                focus_date TEXT,
+                slot_name TEXT,
+                category TEXT,
+                task_id INTEGER,
+                task_title TEXT,
+                task_period TEXT,
+                task_difficulty TEXT,
+                status TEXT DEFAULT 'Pending',
+                UNIQUE(focus_date, slot_name)
+            )
+        ''')
 
         # --- Safely add new columns to existing databases ---
         new_columns =[
@@ -420,6 +443,7 @@ class Database:
         cursor.execute("DELETE FROM quest_task WHERE task_id=?", (task_id,))
         cursor.execute("DELETE FROM task WHERE id=?", (task_id,))
         self.conn.commit()
+        self.delete_daily_focus_task(task_id)
 
     def mark_task_completed(self, task_id):
         from datetime import date
@@ -477,6 +501,167 @@ class Database:
         cursor.execute("SELECT MAX(streak) FROM task")
         result = cursor.fetchone()[0]
         return result or 0
+
+    # -------------------------------------------------------------------------
+    # DAILY FOCUS
+    # -------------------------------------------------------------------------
+
+    def get_daily_focus(self, focus_date=None):
+        focus_date = focus_date or date.today().isoformat()
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT focus_date, streak, completed, claimed, completed_at
+            FROM daily_focus
+            WHERE focus_date=?
+        """, (focus_date,))
+        focus_row = cursor.fetchone()
+        if focus_row is None:
+            return None
+
+        cursor.execute("""
+            SELECT slot_name, category, task_id, task_title, task_period,
+                   task_difficulty, status
+            FROM daily_focus_item
+            WHERE focus_date=?
+            ORDER BY
+                CASE slot_name
+                    WHEN 'mind' THEN 1
+                    WHEN 'body' THEN 2
+                    WHEN 'life' THEN 3
+                    ELSE 4
+                END
+        """, (focus_date,))
+        items = [{
+            "slot_name": row[0],
+            "category": row[1],
+            "task_id": row[2],
+            "task_title": row[3],
+            "task_period": row[4],
+            "task_difficulty": row[5],
+            "status": row[6],
+        } for row in cursor.fetchall()]
+
+        completed_count = sum(1 for item in items if item["status"] == "Completed")
+        return {
+            "focus_date": focus_row[0],
+            "streak": focus_row[1] or 0,
+            "completed": bool(focus_row[2]),
+            "claimed": bool(focus_row[3]),
+            "completed_at": focus_row[4],
+            "items": items,
+            "completed_count": completed_count,
+            "total_count": len(items),
+        }
+
+    def save_daily_focus(self, focus_date, items, streak=0):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO daily_focus(focus_date, streak, completed, claimed, completed_at)
+            VALUES (?, ?, 0, 0, NULL)
+        """, (focus_date, streak))
+        cursor.execute("DELETE FROM daily_focus_item WHERE focus_date=?", (focus_date,))
+        for item in items:
+            cursor.execute("""
+                INSERT INTO daily_focus_item(
+                    focus_date, slot_name, category, task_id, task_title,
+                    task_period, task_difficulty, status
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                focus_date,
+                item["slot_name"],
+                item["category"],
+                item["task_id"],
+                item["task_title"],
+                item["task_period"],
+                item["task_difficulty"],
+                item.get("status", "Pending"),
+            ))
+        self.conn.commit()
+
+    def get_last_completed_daily_focus(self):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT focus_date, streak
+            FROM daily_focus
+            WHERE completed=1
+            ORDER BY focus_date DESC
+            LIMIT 1
+        """)
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return {"focus_date": row[0], "streak": row[1] or 0}
+
+    def get_latest_daily_focus(self, before_date=None):
+        cursor = self.conn.cursor()
+        if before_date:
+            cursor.execute("""
+                SELECT focus_date, streak, completed, claimed, completed_at
+                FROM daily_focus
+                WHERE focus_date < ?
+                ORDER BY focus_date DESC
+                LIMIT 1
+            """, (before_date,))
+        else:
+            cursor.execute("""
+                SELECT focus_date, streak, completed, claimed, completed_at
+                FROM daily_focus
+                ORDER BY focus_date DESC
+                LIMIT 1
+            """)
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return {
+            "focus_date": row[0],
+            "streak": row[1] or 0,
+            "completed": bool(row[2]),
+            "claimed": bool(row[3]),
+            "completed_at": row[4],
+        }
+
+    def get_best_daily_focus_streak(self):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT MAX(streak) FROM daily_focus WHERE completed=1")
+        result = cursor.fetchone()[0]
+        return result or 0
+
+    def mark_daily_focus_task_completed(self, task_id, focus_date=None):
+        focus_date = focus_date or date.today().isoformat()
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            UPDATE daily_focus_item
+            SET status='Completed'
+            WHERE focus_date=? AND task_id=?
+        """, (focus_date, task_id))
+        changed = cursor.rowcount > 0
+        self.conn.commit()
+        return changed
+
+    def complete_daily_focus(self, focus_date=None, streak=1):
+        focus_date = focus_date or date.today().isoformat()
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            UPDATE daily_focus
+            SET completed=1, streak=?, completed_at=?
+            WHERE focus_date=?
+        """, (streak, focus_date, focus_date))
+        self.conn.commit()
+
+    def claim_daily_focus(self, focus_date=None):
+        focus_date = focus_date or date.today().isoformat()
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "UPDATE daily_focus SET claimed=1 WHERE focus_date=?",
+            (focus_date,)
+        )
+        self.conn.commit()
+
+    def delete_daily_focus_task(self, task_id):
+        cursor = self.conn.cursor()
+        cursor.execute("DELETE FROM daily_focus_item WHERE task_id=?", (task_id,))
+        self.conn.commit()
 
     # -------------------------------------------------------------------------
     # TASK REWARDS
@@ -1134,6 +1319,7 @@ class Database:
             "tasks": self.get_all_tasks(),
             "quests": quests,
             "boss": active_boss,
+            "daily_focus": self.get_daily_focus(),
             "task_history": self.get_task_history(),
         }
 
@@ -1147,6 +1333,7 @@ class Database:
     def reset_all_progress(self):
         cursor = self.conn.cursor()
         tables = [
+            "daily_focus_item", "daily_focus",
             "task_reward", "task_history", "quest_task", "quest",
             "boss", "task", "skill", "achievement", "player"
         ]

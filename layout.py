@@ -325,15 +325,20 @@ class SkillUI:
                       command=self.show_weekly_review
                       ).grid(row=4, column=0, sticky="ew", padx=(8, 4), pady=6)
 
+        ctk.CTkButton(action_panel, text="Focus Board", height=32,
+                      font=ctk.CTkFont(size=12, weight="bold"),
+                      command=self.show_daily_focus
+                      ).grid(row=4, column=1, sticky="ew", padx=(4, 8), pady=6)
+
         ctk.CTkButton(action_panel, text="Insights", height=32,
                       font=ctk.CTkFont(size=12, weight="bold"),
                       command=self.show_progression_insights
-                      ).grid(row=4, column=1, sticky="ew", padx=(4, 8), pady=6)
+                      ).grid(row=5, column=0, sticky="ew", padx=(8, 4), pady=6)
 
         ctk.CTkButton(action_panel, text="Settings", height=32,
                       font=ctk.CTkFont(size=12, weight="bold"),
                       command=self.show_settings
-                      ).grid(row=5, column=0, columnspan=2, sticky="ew", padx=8, pady=(6, 8))
+                      ).grid(row=5, column=1, sticky="ew", padx=(4, 8), pady=6)
 
     def _build_popup_footer(self, parent, message, button_text, button_color, hover_color,
                             text_color, command, wraplength=320):
@@ -517,6 +522,86 @@ class SkillUI:
             UI_COLORS["accent_blue"],
             "#2e97db",
             "#08131f",
+            close_popup,
+            wraplength=300
+        )
+
+    def show_daily_focus_bonus_popup(self, focus_event, on_close=None):
+        popup = ctk.CTkToplevel(self.root)
+        popup.title("Daily Focus Complete!")
+        popup.geometry("400x380")
+        popup.grab_set()
+        popup.resizable(False, False)
+
+        focus = focus_event.get("focus", {})
+        rewards = focus_event.get("rewards", {})
+
+        ctk.CTkLabel(
+            popup,
+            text="Daily Focus Cleared!",
+            text_color=UI_COLORS["accent_green"],
+            font=ctk.CTkFont(size=18, weight="bold")
+        ).pack(pady=(24, 6))
+
+        ctk.CTkLabel(
+            popup,
+            text=(
+                f"You completed {focus.get('completed_count', 0)} focus mission(s) today.\n"
+                + (
+                    f"Recovery streak protected at {focus_event.get('streak', 1)} day(s)"
+                    if focus_event.get("recovery_used")
+                    else f"Focus streak: {focus_event.get('streak', 1)} day(s)"
+                )
+            ),
+            text_color="#dde7f2",
+            font=ctk.CTkFont(size=12),
+            justify="center"
+        ).pack(pady=(0, 12))
+
+        rewards_frame = ctk.CTkFrame(popup, fg_color="#1e1e2e", corner_radius=10)
+        rewards_frame.pack(fill="x", padx=20, pady=(0, 14))
+
+        reward_lines = [
+            (f"+ {rewards.get('oxp', 0)} OXP", "#00ccff"),
+            (f"+ {rewards.get('gold', 0)} Gold", "#ffd700"),
+            (f"+ {rewards.get('attack', 0)} Attack Points", "#ff9900"),
+        ]
+        for text, color in reward_lines:
+            ctk.CTkLabel(
+                rewards_frame,
+                text=text,
+                text_color=color,
+                font=ctk.CTkFont(size=13, weight="bold")
+            ).pack(anchor="w", padx=16, pady=4)
+
+        items_frame = ctk.CTkFrame(popup, fg_color="#171d29", corner_radius=10)
+        items_frame.pack(fill="x", padx=20, pady=(0, 14))
+
+        for item in focus.get("items", []):
+            ctk.CTkLabel(
+                items_frame,
+                text=f"{item['slot_name'].title()}: {item['task_title']}",
+                text_color="#cfe3ff",
+                font=ctk.CTkFont(size=11)
+            ).pack(anchor="w", padx=16, pady=3)
+
+        def close_popup():
+            popup.destroy()
+            if on_close:
+                on_close()
+
+        popup.protocol("WM_DELETE_WINDOW", close_popup)
+        self._build_popup_footer(
+            popup,
+            (
+                "You bounced back after a missed day and protected part of your streak."
+                if focus_event.get("recovery_used")
+                else "Your full focus set is complete. The bonus is already added to your progression."
+            ),
+            "Collect Focus Bonus",
+            UI_COLORS["accent_green"],
+            "#34b564",
+            "#0b1a12",
             close_popup,
             wraplength=300
         )
@@ -1301,10 +1386,86 @@ class SkillUI:
                      ).grid(row=2, column=0, sticky="w", padx=16, pady=(0,14))
         return card
 
-    def _build_todays_plan(self, player, pending_daily, tasks_today, active_quests, active_boss):
+    def _format_focus_summary(self, focus):
+        if not focus or not focus.get("items"):
+            return "No focus missions assigned yet.\nAdd more meaningful tasks to generate today's focus."
+
+        total_count = focus.get("total_count", len(focus.get("items", [])))
+        completed_count = focus.get("completed_count", 0)
+        if focus.get("completed"):
+            state = "Bonus collected" if focus.get("claimed") else "Bonus ready"
+        else:
+            state = "In progress"
+
+        next_item = next(
+            (item for item in focus.get("items", []) if item.get("status") != "Completed"),
+            None
+        )
+        next_label = next_item["task_title"] if next_item else "Full set complete"
+        return (
+            f"Focus missions: {completed_count}/{total_count} done\n"
+            f"Focus streak: {focus.get('streak', 0)} day(s)\n"
+            f"Status: {state}\n"
+            f"Next focus: {next_label}"
+        )
+
+    def _format_focus_recovery_summary(self, recovery_status):
+        if not recovery_status.get("missed_yesterday"):
+            return (
+                f"Best focus streak: {recovery_status.get('best_streak', 0)} day(s)\n"
+                "No recovery pressure today.\n"
+                "Keep stacking calm, consistent days."
+            )
+
+        if recovery_status.get("recovery_available"):
+            return (
+                "Yesterday's focus set was missed.\n"
+                "Recovery mission: complete 1 focus task today.\n"
+                f"Protected streak if you finish the full set: {recovery_status.get('protected_streak', 1)} day(s)"
+            )
+
+        if recovery_status.get("recovery_started"):
+            return (
+                "Recovery has already started today.\n"
+                "Keep going to finish the full focus set.\n"
+                f"Best focus streak: {recovery_status.get('best_streak', 0)} day(s)"
+            )
+
+        return (
+            "You came back after a missed day.\n"
+            f"Best focus streak: {recovery_status.get('best_streak', 0)} day(s)\n"
+            "Momentum matters more than perfection."
+        )
+
+    def _build_todays_plan(self, player, pending_daily, tasks_today, active_quests, active_boss, focus, recovery_status):
         plan = []
 
-        if pending_daily:
+        focus_items = focus.get("items", []) if focus else []
+        pending_focus = [item for item in focus_items if item.get("status") != "Completed"]
+
+        if recovery_status.get("recovery_available") and pending_focus:
+            next_task = pending_focus[0]
+            plan.append({
+                "title": "Recovery Mission",
+                "body": (
+                    f"Yesterday slipped. Finish '{next_task['task_title']}' first to restart momentum without panic."
+                ),
+                "button": "Recover On Focus Board",
+                "command": self.show_daily_focus,
+                "accent": UI_COLORS["accent_red"],
+            })
+        elif pending_focus:
+            next_task = pending_focus[0]
+            plan.append({
+                "title": "Daily Focus First",
+                "body": (
+                    f"Push '{next_task['task_title']}' next so today's curated focus set keeps moving."
+                ),
+                "button": "Open Focus Board",
+                "command": self.show_daily_focus,
+                "accent": UI_COLORS["accent_green"],
+            })
+        elif pending_daily:
             next_task = pending_daily[0]
             plan.append({
                 "title": "Start With Your Easiest Win",
@@ -1316,9 +1477,9 @@ class SkillUI:
         else:
             plan.append({
                 "title": "Daily Loop Cleared",
-                "body": "Your daily tasks are complete. Use the extra space to review progress or push a quest forward.",
-                "button": "Weekly Review",
-                "command": self.show_weekly_review,
+                "body": "Your daily task loop is clear. Review your focus streak or push a quest forward.",
+                "button": "Open Focus Board",
+                "command": self.show_daily_focus,
                 "accent": UI_COLORS["accent_blue"],
             })
 
@@ -1409,6 +1570,211 @@ class SkillUI:
                       ).grid(row=3, column=0, sticky="ew", padx=14, pady=(0, 14))
         return card
 
+    def show_daily_focus(self):
+        self.clear_content()
+
+        for i in range(12):
+            self.task_container.grid_rowconfigure(i, weight=0)
+            self.task_container.grid_columnconfigure(i, weight=0)
+
+        self.task_container.grid_columnconfigure(0, weight=1)
+        self.task_container.grid_rowconfigure(2, weight=1)
+
+        recovery_status = self.engine.get_focus_recovery_status()
+        focus = recovery_status["focus"]
+
+        ctk.CTkLabel(
+            self.task_container,
+            text="Daily Focus Board",
+            font=ctk.CTkFont(size=20, weight="bold")
+        ).grid(row=0, column=0, sticky="w", padx=12, pady=(8, 2))
+        ctk.CTkLabel(
+            self.task_container,
+            text="Three guided real-life priorities for the day. Finish the full set to earn the focus bonus.",
+            text_color=UI_COLORS["text_muted"],
+            font=ctk.CTkFont(size=11)
+        ).grid(row=1, column=0, sticky="w", padx=12, pady=(0, 10))
+
+        board_scroll = ctk.CTkScrollableFrame(
+            self.task_container,
+            fg_color="transparent",
+            corner_radius=0
+        )
+        board_scroll.grid(row=2, column=0, sticky="nsew", padx=2, pady=(0, 4))
+        board_scroll.grid_columnconfigure(0, weight=1)
+        board_scroll.grid_columnconfigure(1, weight=1)
+
+        left_panel = ctk.CTkFrame(board_scroll, corner_radius=12, fg_color=UI_COLORS["panel"])
+        left_panel.grid(row=0, column=0, sticky="nsew", padx=(4, 8), pady=4)
+        left_panel.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            left_panel,
+            text="Today's Missions",
+            font=ctk.CTkFont(size=15, weight="bold")
+        ).grid(row=0, column=0, sticky="w", padx=16, pady=(14, 8))
+
+        slot_labels = {
+            "mind": ("Mind", "#6fc7ff"),
+            "body": ("Body", "#ff8f7a"),
+            "life": ("Life", "#f3c969"),
+        }
+        item_lookup = {item["slot_name"]: item for item in focus.get("items", [])}
+
+        for row_index, slot_name in enumerate(("mind", "body", "life"), start=1):
+            label, color = slot_labels[slot_name]
+            item = item_lookup.get(slot_name)
+            block = ctk.CTkFrame(left_panel, fg_color=UI_COLORS["card"], corner_radius=10)
+            block.grid(row=row_index, column=0, sticky="ew", padx=14, pady=6)
+            block.grid_columnconfigure(0, weight=1)
+
+            ctk.CTkLabel(
+                block,
+                text=label,
+                text_color=color,
+                font=ctk.CTkFont(size=12, weight="bold")
+            ).grid(row=0, column=0, sticky="w", padx=12, pady=(10, 4))
+
+            if item:
+                status_color = "#44ff88" if item.get("status") == "Completed" else "#ffaa00"
+                ctk.CTkLabel(
+                    block,
+                    text=item["task_title"],
+                    font=ctk.CTkFont(size=12, weight="bold")
+                ).grid(row=1, column=0, sticky="w", padx=12)
+                ctk.CTkLabel(
+                    block,
+                    text=f"{item['task_period'].capitalize()}  |  {item['task_difficulty'].capitalize()}",
+                    text_color="#9fb0c6",
+                    font=ctk.CTkFont(size=10)
+                ).grid(row=2, column=0, sticky="w", padx=12, pady=(2, 2))
+                ctk.CTkLabel(
+                    block,
+                    text=f"Status: {item['status']}",
+                    text_color=status_color,
+                    font=ctk.CTkFont(size=10, weight="bold")
+                ).grid(row=3, column=0, sticky="w", padx=12, pady=(0, 8))
+                ctk.CTkButton(
+                    block,
+                    text="Open Task List",
+                    height=28,
+                    command=lambda period=item["task_period"]: self.switch_menu(period)
+                ).grid(row=4, column=0, sticky="ew", padx=12, pady=(0, 12))
+            else:
+                ctk.CTkLabel(
+                    block,
+                    text="No matching task for this focus lane yet.\nAdd a task to fill it tomorrow.",
+                    text_color="#9fb0c6",
+                    justify="left",
+                    font=ctk.CTkFont(size=11)
+                ).grid(row=1, column=0, sticky="w", padx=12, pady=(0, 12))
+
+        right_panel = ctk.CTkFrame(board_scroll, corner_radius=12, fg_color=UI_COLORS["panel"])
+        right_panel.grid(row=0, column=1, sticky="nsew", padx=(8, 4), pady=4)
+        right_panel.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            right_panel,
+            text="Focus Bonus",
+            font=ctk.CTkFont(size=15, weight="bold")
+        ).grid(row=0, column=0, sticky="w", padx=16, pady=(14, 8))
+
+        total_count = focus.get("total_count", len(focus.get("items", [])))
+        completed_count = focus.get("completed_count", 0)
+        progress = (completed_count / total_count) if total_count else 0
+        progress_bar = ctk.CTkProgressBar(
+            right_panel,
+            height=12,
+            corner_radius=6,
+            progress_color=UI_COLORS["accent_green"]
+        )
+        progress_bar.set(progress)
+        progress_bar.grid(row=1, column=0, sticky="ew", padx=16, pady=(0, 8))
+
+        status_text = "Collected" if focus.get("claimed") else "Ready" if focus.get("completed") else "Building"
+        info_lines = [
+            f"Completed today: {completed_count} / {total_count}",
+            f"Focus streak: {focus.get('streak', 0)} day(s)",
+            f"Best focus streak: {recovery_status.get('best_streak', 0)} day(s)",
+            f"Bonus status: {status_text}",
+        ]
+        for row_index, line in enumerate(info_lines, start=2):
+            ctk.CTkLabel(
+                right_panel,
+                text=line,
+                text_color="#dde7f2",
+                font=ctk.CTkFont(size=11)
+            ).grid(row=row_index, column=0, sticky="w", padx=16, pady=2)
+
+        reward_preview = [
+            "+ bonus OXP scales with the three selected task difficulties",
+            "+ bonus Gold gives your day a tangible payoff",
+            "+ bonus Attack Points keep real progress connected to combat",
+        ]
+        ctk.CTkLabel(
+            right_panel,
+            text="How it works",
+            font=ctk.CTkFont(size=13, weight="bold")
+        ).grid(row=6, column=0, sticky="w", padx=16, pady=(14, 6))
+        for row_index, line in enumerate(reward_preview, start=7):
+            ctk.CTkLabel(
+                right_panel,
+                text=line,
+                text_color="#9fb0c6",
+                justify="left",
+                font=ctk.CTkFont(size=11)
+            ).grid(row=row_index, column=0, sticky="w", padx=16, pady=2)
+
+        ctk.CTkLabel(
+            right_panel,
+            text="Recovery",
+            font=ctk.CTkFont(size=13, weight="bold")
+        ).grid(row=10, column=0, sticky="w", padx=16, pady=(14, 6))
+        ctk.CTkLabel(
+            right_panel,
+            text=self._format_focus_recovery_summary(recovery_status),
+            text_color="#9fb0c6",
+            justify="left",
+            wraplength=300,
+            font=ctk.CTkFont(size=11)
+        ).grid(row=11, column=0, sticky="w", padx=16, pady=(0, 8))
+
+        quick_frame = ctk.CTkFrame(right_panel, fg_color="transparent")
+        quick_frame.grid(row=12, column=0, sticky="ew", padx=12, pady=(16, 14))
+        quick_frame.grid_columnconfigure(0, weight=1)
+        quick_frame.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkButton(
+            quick_frame,
+            text="Dashboard",
+            height=32,
+            fg_color=UI_COLORS["accent_blue"],
+            hover_color="#2e97db",
+            text_color="#08131f",
+            command=self.show_dashboard
+        ).grid(row=0, column=0, padx=4, pady=4, sticky="ew")
+        ctk.CTkButton(
+            quick_frame,
+            text="Daily Tasks",
+            height=32,
+            command=lambda: self.switch_menu("daily")
+        ).grid(row=0, column=1, padx=4, pady=4, sticky="ew")
+        ctk.CTkButton(
+            quick_frame,
+            text="Add Task",
+            height=32,
+            fg_color=UI_COLORS["accent_green"],
+            hover_color="#34b564",
+            text_color="#0b1a12",
+            command=self.open_add_task_popup
+        ).grid(row=1, column=0, padx=4, pady=4, sticky="ew")
+        ctk.CTkButton(
+            quick_frame,
+            text="Quests",
+            height=32,
+            command=self.show_quests
+        ).grid(row=1, column=1, padx=4, pady=4, sticky="ew")
+
     def show_dashboard(self):
         self.clear_content()
 
@@ -1422,10 +1788,10 @@ class SkillUI:
         player = self.db.get_player()
         daily_tasks = self.db.get_tasks_by_period("daily")
         pending_daily = [task for task in daily_tasks if task["status"] != "Completed"]
-        completed_daily = len(daily_tasks) - len(pending_daily)
-        next_task = pending_daily[0]["title"] if pending_daily else "All daily tasks are complete"
         tasks_today = self.db.get_tasks_completed_today()
         max_streak = self.db.get_max_task_streak()
+        recovery_status = self.engine.get_focus_recovery_status()
+        focus = recovery_status["focus"]
         quests = self.db.get_quests_with_progress()
         active_quests = [quest for quest in quests if quest["status"] == "Active"]
         active_quests.sort(
@@ -1436,7 +1802,7 @@ class SkillUI:
         next_boss_level, next_boss_tier = self._get_next_boss_milestone(player["level"])
         required_oxp = self.get_required_oxp(player["level"])
         todays_plan = self._build_todays_plan(
-            player, pending_daily, tasks_today, active_quests, active_boss
+            player, pending_daily, tasks_today, active_quests, active_boss, focus, recovery_status
         )
 
         ctk.CTkLabel(self.task_container, text="Command Center",
@@ -1466,9 +1832,7 @@ class SkillUI:
         self._create_dashboard_card(
             summary_frame,
             "Today's Focus",
-            f"Daily tasks: {completed_daily}/{len(daily_tasks)} done\n"
-            f"Pending now: {len(pending_daily)}\n"
-            f"Next best task: {next_task}",
+            self._format_focus_summary(focus),
             "#66ccff",
             0, 0
         )
@@ -1494,6 +1858,34 @@ class SkillUI:
             boss_body,
             "#ff6666",
             0, 2
+        )
+        self._create_dashboard_card(
+            summary_frame,
+            "Recovery Pulse",
+            self._format_focus_recovery_summary(recovery_status),
+            UI_COLORS["accent_red"] if recovery_status.get("missed_yesterday") else UI_COLORS["accent_blue"],
+            1, 0
+        )
+        self._create_dashboard_card(
+            summary_frame,
+            "Best Focus Streak",
+            (
+                f"Best run: {recovery_status.get('best_streak', 0)} day(s)\n"
+                f"Current focus streak: {focus.get('streak', 0)} day(s)\n"
+                "One missed day now gives a softer comeback path."
+            ),
+            UI_COLORS["accent_gold"],
+            1, 1
+        )
+        self._create_dashboard_card(
+            summary_frame,
+            "Recovery Rule",
+            (
+                "If yesterday was missed, complete one focus mission today to restart momentum.\n"
+                "Finishing the full focus set protects part of your previous streak."
+            ),
+            UI_COLORS["accent_green"],
+            1, 2
         )
 
         lower_frame = ctk.CTkFrame(dashboard_scroll, fg_color="transparent")
@@ -1589,21 +1981,27 @@ class SkillUI:
                       text_color="#0b1a12",
                       command=self.open_add_task_popup
                       ).grid(row=0, column=0, padx=4, pady=4, sticky="ew")
+        ctk.CTkButton(action_frame, text="Focus Board", height=32,
+                      fg_color=UI_COLORS["accent_blue"],
+                      hover_color="#2e97db",
+                      text_color="#08131f",
+                      command=self.show_daily_focus
+                      ).grid(row=0, column=1, padx=4, pady=4, sticky="ew")
         ctk.CTkButton(action_frame, text="Daily Tasks", height=32,
                       fg_color=UI_COLORS["accent_blue"],
                       hover_color="#2e97db",
                       text_color="#08131f",
                       command=lambda: self.switch_menu("daily")
-                      ).grid(row=0, column=1, padx=4, pady=4, sticky="ew")
+                      ).grid(row=1, column=0, padx=4, pady=4, sticky="ew")
         ctk.CTkButton(action_frame, text="Quests", height=32,
                       command=self.show_quests
-                      ).grid(row=1, column=0, padx=4, pady=4, sticky="ew")
+                      ).grid(row=1, column=1, padx=4, pady=4, sticky="ew")
         ctk.CTkButton(action_frame, text="Shop", height=32,
                       command=self.show_shop
-                      ).grid(row=1, column=1, padx=4, pady=4, sticky="ew")
+                      ).grid(row=2, column=0, padx=4, pady=4, sticky="ew")
         ctk.CTkButton(action_frame, text="Weekly Review", height=32,
                       command=self.show_weekly_review
-                      ).grid(row=2, column=0, padx=4, pady=4, sticky="ew")
+                      ).grid(row=2, column=1, padx=4, pady=4, sticky="ew")
         final_action = ctk.CTkButton(
             action_frame,
             text="Fight Boss" if active_boss else "Insights",
@@ -1612,7 +2010,7 @@ class SkillUI:
         )
         if active_boss:
             final_action.configure(fg_color="#8b0000", hover_color="#aa0000")
-        final_action.grid(row=2, column=1, padx=4, pady=4, sticky="ew")
+        final_action.grid(row=3, column=0, columnspan=2, padx=4, pady=4, sticky="ew")
 
     def _create_task_card(self, parent, task):
         status_done = task["status"] == "Completed"
@@ -3573,32 +3971,41 @@ class SkillUI:
         # 1. Task reward popup
         popup_queue.append(lambda next_step, r=result: self.show_task_reward_popup(r, on_close=next_step))
 
-        # 2. Skill level up popups (one per skill that leveled)
+        # 2. Daily focus completion popup
+        if result.get("daily_focus_event", {}).get("just_completed"):
+            popup_queue.append(
+                lambda next_step, focus_event=result["daily_focus_event"]: self.show_daily_focus_bonus_popup(
+                    focus_event,
+                    on_close=next_step
+                )
+            )
+
+        # 3. Skill level up popups (one per skill that leveled)
         for skill_event in result.get("skill_events", []):
             if skill_event["leveled_up"]:
                 popup_queue.append(
                     lambda next_step, se=skill_event: self.show_skill_level_up_popup(se, on_close=next_step)
                 )
 
-        # 3. Character level up popups (one per level gained)
+        # 4. Character level up popups (one per level gained)
         for level_event in result.get("level_events", []):
             popup_queue.append(
                 lambda next_step, le=level_event: self.show_level_up_popup(le, on_close=next_step)
             )
 
-        # 4. Achievement popups (one per achievement)
+        # 5. Achievement popups (one per achievement)
         for title in result.get("newly_unlocked", []):
             popup_queue.append(
                 lambda next_step, t=title: self.show_achievement_unlock_popup(t, on_close=next_step)
             )
 
-        # 5. Quest completion popups
+        # 6. Quest completion popups
         for quest in result.get("quest_events", []):
             popup_queue.append(
                 lambda next_step, q=quest: self.show_quest_complete_popup(q, on_close=next_step)
             )
 
-        # 6. Boss spawn alert
+        # 7. Boss spawn alert
         if result.get("boss"):
             popup_queue.append(
                 lambda next_step, b=result["boss"]: self.show_boss_alert(b, on_close=next_step)

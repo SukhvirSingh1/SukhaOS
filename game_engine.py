@@ -170,6 +170,218 @@ class GameEngine:
 
         return quest_events, level_events
 
+    def _categorize_focus_task(self, task):
+        reward_skills = {reward["skill_name"].lower() for reward in self.db.get_task_rewards(task["id"])}
+        title_blob = f"{task.get('title', '')} {task.get('description', '')}".lower()
+
+        body_keywords = {
+            "health", "strength", "workout", "exercise", "gym", "walk",
+            "run", "sleep", "water", "stretch", "fitness", "body"
+        }
+        mind_keywords = {
+            "mind", "study", "read", "learn", "iq", "programming",
+            "editing", "focus", "deep work", "write", "journal", "meditate"
+        }
+
+        if reward_skills & {"health", "strength"}:
+            return "body"
+        if reward_skills & {"mind", "iq", "programming", "editing"}:
+            return "mind"
+        if any(keyword in title_blob for keyword in body_keywords):
+            return "body"
+        if any(keyword in title_blob for keyword in mind_keywords):
+            return "mind"
+        return "life"
+
+    def _score_focus_task(self, task):
+        period_weight = {"daily": 40, "weekly": 28, "monthly": 18, "yearly": 12}
+        difficulty_weight = {"easy": 6, "medium": 11, "hard": 17}
+        quest_bonus = 10 if self.db.get_task_quests(task["id"]) else 0
+        streak_bonus = min(task.get("streak", 0), 5)
+        return (
+            period_weight.get(task.get("period", "daily"), 10)
+            + difficulty_weight.get(task.get("difficulty", "medium").lower(), 8)
+            + quest_bonus
+            + streak_bonus
+        )
+
+    def _build_daily_focus_items(self):
+        pending_tasks = [
+            task for task in self.db.get_all_tasks()
+            if task.get("status") != "Completed"
+        ]
+        if not pending_tasks:
+            return []
+
+        categorized = {"mind": [], "body": [], "life": []}
+        for task in pending_tasks:
+            category = self._categorize_focus_task(task)
+            categorized[category].append(task)
+
+        for tasks in categorized.values():
+            tasks.sort(key=self._score_focus_task, reverse=True)
+
+        items = []
+        used_task_ids = set()
+        for slot_name in ("mind", "body", "life"):
+            for task in categorized[slot_name]:
+                if task["id"] in used_task_ids:
+                    continue
+                items.append({
+                    "slot_name": slot_name,
+                    "category": slot_name,
+                    "task_id": task["id"],
+                    "task_title": task["title"],
+                    "task_period": task["period"],
+                    "task_difficulty": task.get("difficulty", "medium"),
+                    "status": "Completed" if task.get("status") == "Completed" else "Pending",
+                })
+                used_task_ids.add(task["id"])
+                break
+
+        return items
+
+    def ensure_daily_focus(self):
+        focus = self.db.get_daily_focus()
+        if focus and focus.get("items"):
+            return focus
+
+        items = self._build_daily_focus_items()
+        if not items:
+            return {
+                "focus_date": date.today().isoformat(),
+                "streak": 0,
+                "completed": False,
+                "claimed": False,
+                "completed_at": None,
+                "items": [],
+                "completed_count": 0,
+                "total_count": 0,
+            }
+
+        last_completed = self.db.get_last_completed_daily_focus()
+        preserved_streak = 0
+        if last_completed:
+            last_date = datetime.strptime(last_completed["focus_date"], "%Y-%m-%d").date()
+            if (date.today() - last_date).days <= 1:
+                preserved_streak = last_completed.get("streak", 0)
+
+        self.db.save_daily_focus(date.today().isoformat(), items, streak=preserved_streak)
+        return self.db.get_daily_focus()
+
+    def get_focus_recovery_status(self):
+        focus = self.ensure_daily_focus()
+        today = date.today()
+        yesterday_str = (today.fromordinal(today.toordinal() - 1)).isoformat()
+        yesterday_focus = self.db.get_daily_focus(yesterday_str)
+        latest_previous = self.db.get_latest_daily_focus(before_date=today.isoformat())
+        last_completed = self.db.get_last_completed_daily_focus()
+        best_streak = self.db.get_best_daily_focus_streak()
+
+        last_completed_date = None
+        if last_completed:
+            last_completed_date = datetime.strptime(last_completed["focus_date"], "%Y-%m-%d").date()
+
+        missed_yesterday = bool(yesterday_focus and not yesterday_focus.get("completed"))
+        if not missed_yesterday and last_completed_date:
+            missed_yesterday = (today - last_completed_date).days == 2
+
+        completed_today = focus.get("completed_count", 0)
+        recovery_available = missed_yesterday and completed_today == 0
+        recovery_started = missed_yesterday and completed_today > 0 and not focus.get("completed")
+
+        broken_days = 0
+        if last_completed_date:
+            broken_days = max(0, (today - last_completed_date).days - 1)
+
+        previous_streak = last_completed.get("streak", 0) if last_completed else 0
+        protected_streak = max(1, (previous_streak + 1) // 2) if missed_yesterday and previous_streak > 1 else 1
+
+        return {
+            "focus": focus,
+            "best_streak": best_streak,
+            "missed_yesterday": missed_yesterday,
+            "recovery_available": recovery_available,
+            "recovery_started": recovery_started,
+            "broken_days": broken_days,
+            "yesterday_focus": yesterday_focus,
+            "latest_previous": latest_previous,
+            "last_completed": last_completed,
+            "previous_streak": previous_streak,
+            "protected_streak": protected_streak,
+        }
+
+    def _calculate_daily_focus_rewards(self, focus):
+        items = focus.get("items", [])
+        difficulty_score = sum(
+            {"easy": 1, "medium": 2, "hard": 3}.get(item.get("task_difficulty", "medium").lower(), 2)
+            for item in items
+        )
+        total_count = len(items)
+        streak = max(1, focus.get("streak", 1))
+
+        oxp = 18 + (difficulty_score * 6) + (total_count * 5)
+        gold = 12 + (difficulty_score * 4) + (total_count * 3)
+        attack = max(3, total_count + (difficulty_score // 2))
+
+        if streak >= 3:
+            oxp += min(18, streak * 2)
+            gold += min(15, streak * 2)
+
+        return {
+            "oxp": oxp,
+            "gold": gold,
+            "attack": attack,
+        }
+
+    def _process_daily_focus_completion(self, task_id, player):
+        focus = self.ensure_daily_focus()
+        if not focus.get("items"):
+            return None
+
+        changed = self.db.mark_daily_focus_task_completed(task_id)
+        if not changed:
+            return None
+
+        focus = self.db.get_daily_focus()
+        if focus["completed"] or focus["completed_count"] < focus["total_count"]:
+            return {
+                "just_completed": False,
+                "focus": focus,
+            }
+
+        recovery_status = self.get_focus_recovery_status()
+        last_completed = recovery_status.get("last_completed")
+        if recovery_status.get("missed_yesterday"):
+            streak = recovery_status.get("protected_streak", 1)
+        elif last_completed:
+            last_date = datetime.strptime(last_completed["focus_date"], "%Y-%m-%d").date()
+            streak = last_completed.get("streak", 0) + 1 if (date.today() - last_date).days == 1 else 1
+        else:
+            streak = 1
+
+        self.db.complete_daily_focus(streak=streak)
+        focus = self.db.get_daily_focus()
+        focus["streak"] = streak
+
+        rewards = self._calculate_daily_focus_rewards(focus)
+        player["gold"] += rewards["gold"]
+        player["oxp"] += rewards["oxp"]
+        player["attack_points"] += rewards["attack"]
+        player["total_gold_earned"] = player.get("total_gold_earned", 0) + rewards["gold"]
+        level_events = self._apply_level_ups(player)
+        self.db.claim_daily_focus()
+
+        return {
+            "just_completed": True,
+            "focus": self.db.get_daily_focus(),
+            "rewards": rewards,
+            "streak": streak,
+            "recovery_used": recovery_status.get("missed_yesterday", False),
+            "previous_streak": recovery_status.get("previous_streak", 0),
+            "level_events": level_events,
+        }
+
     # -------------------------------------------------------------------------
     # BOSS SYSTEM
     # -------------------------------------------------------------------------
@@ -318,6 +530,7 @@ class GameEngine:
         """
         task   = self.db.get_task(task_id)
         player = self.db.get_player()
+        self.ensure_daily_focus()
 
         if task["status"] == "Completed":
             return False
@@ -403,6 +616,11 @@ class GameEngine:
         quest_events, quest_level_events = self._process_quest_completion(task_id, player)
         if quest_level_events:
             level_events.extend(quest_level_events)
+
+        daily_focus_event = self._process_daily_focus_completion(task_id, player)
+        if daily_focus_event and daily_focus_event.get("level_events"):
+            level_events.extend(daily_focus_event["level_events"])
+
         self.db.update_player(player)
         new_level = player["level"]
 
@@ -431,6 +649,7 @@ class GameEngine:
             "skill_events":    skill_events,
             "level_events":    level_events,
             "quest_events":    quest_events,
+            "daily_focus_event": daily_focus_event,
             "newly_unlocked":  newly_unlocked,
             "boss":            spawned_boss,
             # Task info for display
