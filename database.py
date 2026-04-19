@@ -69,6 +69,12 @@ class Database:
                 description TEXT,
                 category TEXT DEFAULT 'general',
                 difficulty TEXT DEFAULT 'medium',
+                quest_type TEXT DEFAULT 'standard',
+                branch_a_name TEXT DEFAULT '',
+                branch_a_style TEXT DEFAULT '',
+                branch_b_name TEXT DEFAULT '',
+                branch_b_style TEXT DEFAULT '',
+                selected_branch TEXT DEFAULT '',
                 progress_mode TEXT DEFAULT 'all_tasks',
                 target_count INTEGER DEFAULT 0,
                 oxp_reward INTEGER DEFAULT 0,
@@ -164,6 +170,12 @@ class Database:
             "ALTER TABLE player ADD COLUMN onboarding_seen INTEGER DEFAULT 0",
             "ALTER TABLE skill ADD COLUMN is_core INTEGER DEFAULT 0",
             "ALTER TABLE achievement ADD COLUMN category TEXT DEFAULT 'general'",
+            "ALTER TABLE quest ADD COLUMN quest_type TEXT DEFAULT 'standard'",
+            "ALTER TABLE quest ADD COLUMN branch_a_name TEXT DEFAULT ''",
+            "ALTER TABLE quest ADD COLUMN branch_a_style TEXT DEFAULT ''",
+            "ALTER TABLE quest ADD COLUMN branch_b_name TEXT DEFAULT ''",
+            "ALTER TABLE quest ADD COLUMN branch_b_style TEXT DEFAULT ''",
+            "ALTER TABLE quest ADD COLUMN selected_branch TEXT DEFAULT ''",
         ]
         for sql in new_columns:
             try:
@@ -1089,33 +1101,45 @@ class Database:
     # -------------------------------------------------------------------------
 
     def add_quest(self, title, description, category, difficulty, progress_mode,
-                  target_count, oxp_reward, gold_reward, attack_reward):
+                  target_count, oxp_reward, gold_reward, attack_reward,
+                  quest_type="standard", branch_a_name="", branch_a_style="",
+                  branch_b_name="", branch_b_style="", selected_branch=""):
         from datetime import date
         cursor = self.conn.cursor()
         cursor.execute("""
             INSERT INTO quest(
-                title, description, category, difficulty, progress_mode, target_count,
-                oxp_reward, gold_reward, attack_reward, status, created_at
+                title, description, category, difficulty, quest_type,
+                branch_a_name, branch_a_style, branch_b_name, branch_b_style,
+                selected_branch, progress_mode, target_count, oxp_reward,
+                gold_reward, attack_reward, status, created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', ?)
         """, (
-            title, description, category, difficulty, progress_mode, target_count,
-            oxp_reward, gold_reward, attack_reward, date.today().isoformat()
+            title, description, category, difficulty, quest_type,
+            branch_a_name, branch_a_style, branch_b_name, branch_b_style,
+            selected_branch, progress_mode, target_count, oxp_reward,
+            gold_reward, attack_reward, date.today().isoformat()
         ))
         self.conn.commit()
         return cursor.lastrowid
 
     def update_quest(self, quest_id, title, description, category, difficulty,
-                     progress_mode, target_count, oxp_reward, gold_reward, attack_reward):
+                     progress_mode, target_count, oxp_reward, gold_reward, attack_reward,
+                     quest_type="standard", branch_a_name="", branch_a_style="",
+                     branch_b_name="", branch_b_style="", selected_branch=""):
         cursor = self.conn.cursor()
         cursor.execute("""
             UPDATE quest
-            SET title=?, description=?, category=?, difficulty=?, progress_mode=?,
-                target_count=?, oxp_reward=?, gold_reward=?, attack_reward=?
+            SET title=?, description=?, category=?, difficulty=?, quest_type=?,
+                branch_a_name=?, branch_a_style=?, branch_b_name=?, branch_b_style=?,
+                selected_branch=?, progress_mode=?, target_count=?, oxp_reward=?,
+                gold_reward=?, attack_reward=?
             WHERE id=?
         """, (
-            title, description, category, difficulty, progress_mode,
-            target_count, oxp_reward, gold_reward, attack_reward, quest_id
+            title, description, category, difficulty, quest_type,
+            branch_a_name, branch_a_style, branch_b_name, branch_b_style,
+            selected_branch, progress_mode, target_count, oxp_reward,
+            gold_reward, attack_reward, quest_id
         ))
         self.conn.commit()
 
@@ -1128,9 +1152,10 @@ class Database:
     def get_quest(self, quest_id):
         cursor = self.conn.cursor()
         cursor.execute("""
-            SELECT id, title, description, category, difficulty, progress_mode,
-                   target_count, oxp_reward, gold_reward, attack_reward,
-                   status, created_at, completed_at
+            SELECT id, title, description, category, difficulty, quest_type,
+                   branch_a_name, branch_a_style, branch_b_name, branch_b_style,
+                   selected_branch, progress_mode, target_count, oxp_reward,
+                   gold_reward, attack_reward, status, created_at, completed_at
             FROM quest WHERE id=?
         """, (quest_id,))
         row = cursor.fetchone()
@@ -1138,18 +1163,22 @@ class Database:
             return None
         return {
             "id": row[0], "title": row[1], "description": row[2],
-            "category": row[3], "difficulty": row[4], "progress_mode": row[5],
-            "target_count": row[6], "oxp_reward": row[7], "gold_reward": row[8],
-            "attack_reward": row[9], "status": row[10], "created_at": row[11],
-            "completed_at": row[12],
+            "category": row[3], "difficulty": row[4], "quest_type": row[5],
+            "branch_a_name": row[6], "branch_a_style": row[7],
+            "branch_b_name": row[8], "branch_b_style": row[9],
+            "selected_branch": row[10], "progress_mode": row[11],
+            "target_count": row[12], "oxp_reward": row[13], "gold_reward": row[14],
+            "attack_reward": row[15], "status": row[16], "created_at": row[17],
+            "completed_at": row[18],
         }
 
     def get_all_quests(self):
         cursor = self.conn.cursor()
         cursor.execute("""
-            SELECT id, title, description, category, difficulty, progress_mode,
-                   target_count, oxp_reward, gold_reward, attack_reward,
-                   status, created_at, completed_at
+            SELECT id, title, description, category, difficulty, quest_type,
+                   branch_a_name, branch_a_style, branch_b_name, branch_b_style,
+                   selected_branch, progress_mode, target_count, oxp_reward,
+                   gold_reward, attack_reward, status, created_at, completed_at
             FROM quest
             ORDER BY
                 CASE WHEN status='Active' THEN 0 ELSE 1 END,
@@ -1157,10 +1186,13 @@ class Database:
         """)
         return [{
             "id": r[0], "title": r[1], "description": r[2],
-            "category": r[3], "difficulty": r[4], "progress_mode": r[5],
-            "target_count": r[6], "oxp_reward": r[7], "gold_reward": r[8],
-            "attack_reward": r[9], "status": r[10], "created_at": r[11],
-            "completed_at": r[12],
+            "category": r[3], "difficulty": r[4], "quest_type": r[5],
+            "branch_a_name": r[6], "branch_a_style": r[7],
+            "branch_b_name": r[8], "branch_b_style": r[9],
+            "selected_branch": r[10], "progress_mode": r[11],
+            "target_count": r[12], "oxp_reward": r[13], "gold_reward": r[14],
+            "attack_reward": r[15], "status": r[16], "created_at": r[17],
+            "completed_at": r[18],
         } for r in cursor.fetchall()]
 
     def set_quest_tasks(self, quest_id, task_ids):
@@ -1190,9 +1222,10 @@ class Database:
     def get_task_quests(self, task_id):
         cursor = self.conn.cursor()
         cursor.execute("""
-            SELECT q.id, q.title, q.description, q.category, q.difficulty,
-                   q.progress_mode, q.target_count, q.oxp_reward, q.gold_reward,
-                   q.attack_reward, q.status, q.created_at, q.completed_at
+            SELECT q.id, q.title, q.description, q.category, q.difficulty, q.quest_type,
+                   q.branch_a_name, q.branch_a_style, q.branch_b_name, q.branch_b_style,
+                   q.selected_branch, q.progress_mode, q.target_count, q.oxp_reward,
+                   q.gold_reward, q.attack_reward, q.status, q.created_at, q.completed_at
             FROM quest_task qt
             JOIN quest q ON q.id = qt.quest_id
             WHERE qt.task_id=?
@@ -1200,9 +1233,11 @@ class Database:
         """, (task_id,))
         return [{
             "id": r[0], "title": r[1], "description": r[2], "category": r[3],
-            "difficulty": r[4], "progress_mode": r[5], "target_count": r[6],
-            "oxp_reward": r[7], "gold_reward": r[8], "attack_reward": r[9],
-            "status": r[10], "created_at": r[11], "completed_at": r[12],
+            "difficulty": r[4], "quest_type": r[5], "branch_a_name": r[6],
+            "branch_a_style": r[7], "branch_b_name": r[8], "branch_b_style": r[9],
+            "selected_branch": r[10], "progress_mode": r[11], "target_count": r[12],
+            "oxp_reward": r[13], "gold_reward": r[14], "attack_reward": r[15],
+            "status": r[16], "created_at": r[17], "completed_at": r[18],
         } for r in cursor.fetchall()]
 
     def get_quest_progress(self, quest_id):

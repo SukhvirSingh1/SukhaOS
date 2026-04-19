@@ -24,6 +24,33 @@ QUEST_DIFFICULTY_MULTIPLIER = {
     "hard": 0.26,
 }
 
+QUEST_BRANCH_PROFILES = {
+    "Consistency": {
+        "description": "Steady route with safer pacing and dependable progress.",
+        "multiplier": 0.92,
+    },
+    "Challenge": {
+        "description": "Harder push with higher upside if you stay disciplined.",
+        "multiplier": 1.18,
+    },
+    "Study": {
+        "description": "Leans into learning, reading, and skill-building sessions.",
+        "multiplier": 1.00,
+    },
+    "Build": {
+        "description": "Leans into output, shipping, and real-world creation.",
+        "multiplier": 1.08,
+    },
+    "Discipline": {
+        "description": "Focused on routine, habits, and repeatable structure.",
+        "multiplier": 0.97,
+    },
+    "Creative": {
+        "description": "Rewards experimentation, expression, and making something original.",
+        "multiplier": 1.05,
+    },
+}
+
 UI_COLORS = {
     "panel": "#1b2230",
     "panel_alt": "#151b26",
@@ -2392,6 +2419,7 @@ class SkillUI:
         progress = quest.get("progress") or {"progress_value": 0, "target_value": 1, "ratio": 0}
         status_color = "#44ff88" if quest["status"] == "Completed" else "#66ccff"
         mode_label = "Complete all linked tasks" if quest["progress_mode"] == "all_tasks" else "Reach total task completions"
+        branch_summary = self._get_quest_branch_summary(quest)
 
         ctk.CTkLabel(card, text=quest["title"],
                      font=ctk.CTkFont(size=14, weight="bold"),
@@ -2410,16 +2438,26 @@ class SkillUI:
                      text_color=status_color,
                      font=ctk.CTkFont(size=10, weight="bold")
                      ).grid(row=2, column=0, sticky="w", padx=14, pady=(4,2))
+        if branch_summary:
+            ctk.CTkLabel(
+                card,
+                text=(
+                    f"Active path: {branch_summary['selected_name']} [{branch_summary['selected_style']}]"
+                    f"  |  Other route: {branch_summary['other_name']}"
+                ),
+                text_color="#f3c969",
+                font=ctk.CTkFont(size=10, weight="bold")
+            ).grid(row=3, column=0, sticky="w", padx=14, pady=(0, 2))
         ctk.CTkLabel(card,
                      text=f"Progress: {progress['progress_value']} / {progress['target_value']}  |  Linked tasks: {progress['linked_tasks']}",
                      text_color="#cccccc",
                      font=ctk.CTkFont(size=10)
-                     ).grid(row=3, column=0, sticky="w", padx=14)
+                     ).grid(row=4, column=0, sticky="w", padx=14)
 
         bar = ctk.CTkProgressBar(card, height=10, corner_radius=5,
                                  progress_color="#66ccff" if quest["status"] == "Active" else "#44ff88")
         bar.set(progress["ratio"])
-        bar.grid(row=4, column=0, sticky="ew", padx=14, pady=(6,8))
+        bar.grid(row=5, column=0, sticky="ew", padx=14, pady=(6,8))
 
         task_names = [task["title"] for task in quest.get("tasks", [])]
         ctk.CTkLabel(card,
@@ -2427,7 +2465,7 @@ class SkillUI:
                      text_color="#888888",
                      font=ctk.CTkFont(size=10),
                      anchor="w"
-                     ).grid(row=5, column=0, sticky="w", padx=14, pady=(0,6))
+                     ).grid(row=6, column=0, sticky="w", padx=14, pady=(0,6))
 
         rewards = (
             f"Rewards: +{quest.get('oxp_reward', 0)} OXP, "
@@ -2437,10 +2475,10 @@ class SkillUI:
         ctk.CTkLabel(card, text=rewards,
                      text_color="#ffd700",
                      font=ctk.CTkFont(size=10, weight="bold")
-                     ).grid(row=6, column=0, sticky="w", padx=14, pady=(0,8))
+                     ).grid(row=7, column=0, sticky="w", padx=14, pady=(0,8))
 
         actions = ctk.CTkFrame(card, fg_color="transparent")
-        actions.grid(row=0, column=1, rowspan=7, padx=10, pady=10, sticky="ne")
+        actions.grid(row=0, column=1, rowspan=8, padx=10, pady=10, sticky="ne")
         ctk.CTkButton(actions, text="Edit", width=52, height=26,
                       font=ctk.CTkFont(size=10),
                       command=lambda qid=quest["id"]: self.open_edit_quest_popup(qid)
@@ -3508,7 +3546,100 @@ class SkillUI:
 
         return task_vars
 
-    def _calculate_quest_rewards(self, task_ids, quest_difficulty, progress_mode, target_count):
+    def _get_quest_branch_summary(self, quest):
+        if quest.get("quest_type") != "branching":
+            return None
+        selected = quest.get("selected_branch", "a") or "a"
+        if selected == "b":
+            return {
+                "selected_name": quest.get("branch_b_name", "Path B") or "Path B",
+                "selected_style": quest.get("branch_b_style", "Custom") or "Custom",
+                "other_name": quest.get("branch_a_name", "Path A") or "Path A",
+            }
+        return {
+            "selected_name": quest.get("branch_a_name", "Path A") or "Path A",
+            "selected_style": quest.get("branch_a_style", "Custom") or "Custom",
+            "other_name": quest.get("branch_b_name", "Path B") or "Path B",
+        }
+
+    def _get_branch_multiplier(self, quest_type, selected_branch, branch_a_style, branch_b_style):
+        if quest_type != "branching":
+            return 1.0
+        chosen_style = branch_a_style if selected_branch == "a" else branch_b_style
+        profile = QUEST_BRANCH_PROFILES.get(chosen_style or "")
+        return profile.get("multiplier", 1.0) if profile else 1.0
+
+    def _build_branching_quest_controls(self, popup, start_row, quest=None):
+        quest = quest or {}
+        enabled_var = tk.IntVar(value=1 if quest.get("quest_type") == "branching" else 0)
+        path_a_name_var = ctk.StringVar(value=quest.get("branch_a_name", "Path A") or "Path A")
+        path_a_style_var = ctk.StringVar(value=quest.get("branch_a_style", "Consistency") or "Consistency")
+        path_b_name_var = ctk.StringVar(value=quest.get("branch_b_name", "Path B") or "Path B")
+        path_b_style_var = ctk.StringVar(value=quest.get("branch_b_style", "Challenge") or "Challenge")
+        selected_branch_var = ctk.StringVar(value=quest.get("selected_branch", "a") or "a")
+
+        ctk.CTkCheckBox(
+            popup,
+            text="Enable branching quest paths",
+            variable=enabled_var
+        ).grid(row=start_row, column=0, columnspan=2, padx=20, pady=(8, 6), sticky="w")
+
+        frame = ctk.CTkFrame(popup, fg_color=UI_COLORS["panel"], corner_radius=10)
+        frame.grid(row=start_row + 1, column=0, columnspan=2, padx=20, pady=(0, 8), sticky="ew")
+        frame.grid_columnconfigure(1, weight=1)
+
+        labels = [
+            ("Path A Name:", path_a_name_var),
+            ("Path A Style:", path_a_style_var),
+            ("Path B Name:", path_b_name_var),
+            ("Path B Style:", path_b_style_var),
+            ("Active Path:", selected_branch_var),
+        ]
+
+        ctk.CTkLabel(frame, text="Path A Name:", font=ctk.CTkFont(size=11)).grid(row=0, column=0, padx=12, pady=(12, 6), sticky="w")
+        ctk.CTkEntry(frame, textvariable=path_a_name_var).grid(row=0, column=1, padx=12, pady=(12, 6), sticky="ew")
+        ctk.CTkLabel(frame, text="Path A Style:", font=ctk.CTkFont(size=11)).grid(row=1, column=0, padx=12, pady=6, sticky="w")
+        ctk.CTkComboBox(frame, variable=path_a_style_var, values=list(QUEST_BRANCH_PROFILES.keys()), state="readonly").grid(row=1, column=1, padx=12, pady=6, sticky="ew")
+        ctk.CTkLabel(frame, text="Path B Name:", font=ctk.CTkFont(size=11)).grid(row=2, column=0, padx=12, pady=6, sticky="w")
+        ctk.CTkEntry(frame, textvariable=path_b_name_var).grid(row=2, column=1, padx=12, pady=6, sticky="ew")
+        ctk.CTkLabel(frame, text="Path B Style:", font=ctk.CTkFont(size=11)).grid(row=3, column=0, padx=12, pady=6, sticky="w")
+        ctk.CTkComboBox(frame, variable=path_b_style_var, values=list(QUEST_BRANCH_PROFILES.keys()), state="readonly").grid(row=3, column=1, padx=12, pady=6, sticky="ew")
+        ctk.CTkLabel(frame, text="Active Path:", font=ctk.CTkFont(size=11)).grid(row=4, column=0, padx=12, pady=6, sticky="w")
+        ctk.CTkComboBox(frame, variable=selected_branch_var, values=["a", "b"], state="readonly").grid(row=4, column=1, padx=12, pady=6, sticky="ew")
+
+        hint_label = ctk.CTkLabel(
+            frame,
+            text="Branching lets one quest offer two routes, but the active path defines the current reward profile.",
+            text_color="#9fb0c6",
+            justify="left",
+            wraplength=300,
+            font=ctk.CTkFont(size=10)
+        )
+        hint_label.grid(row=5, column=0, columnspan=2, padx=12, pady=(4, 12), sticky="w")
+
+        def toggle_branching(*_args):
+            state = "normal" if enabled_var.get() else "disabled"
+            for widget in frame.winfo_children():
+                try:
+                    widget.configure(state=state)
+                except Exception:
+                    pass
+            hint_label.configure(state="normal")
+
+        enabled_var.trace_add("write", toggle_branching)
+        toggle_branching()
+        return {
+            "enabled_var": enabled_var,
+            "path_a_name_var": path_a_name_var,
+            "path_a_style_var": path_a_style_var,
+            "path_b_name_var": path_b_name_var,
+            "path_b_style_var": path_b_style_var,
+            "selected_branch_var": selected_branch_var,
+        }
+
+    def _calculate_quest_rewards(self, task_ids, quest_difficulty, progress_mode, target_count,
+                                 quest_type="standard", selected_branch="a",
+                                 branch_a_style="", branch_b_style=""):
         total_oxp = 0
         total_gold = 0
         total_sxp = 0
@@ -3531,10 +3662,13 @@ class SkillUI:
         mode_mult = 1.0
         if progress_mode == "completion_count":
             mode_mult += min(0.20, max(0, target_count - linked_count) * 0.05)
+        branch_mult = self._get_branch_multiplier(
+            quest_type, selected_branch, branch_a_style, branch_b_style
+        )
 
-        quest_oxp = max(10, int(total_oxp * difficulty_mult * mode_mult))
-        quest_gold = max(8, int(total_gold * (difficulty_mult * 0.75) * mode_mult))
-        quest_atk = max(2, int(total_atk * (difficulty_mult * 0.35) * mode_mult))
+        quest_oxp = max(10, int(total_oxp * difficulty_mult * mode_mult * branch_mult))
+        quest_gold = max(8, int(total_gold * (difficulty_mult * 0.75) * mode_mult * branch_mult))
+        quest_atk = max(2, int(total_atk * (difficulty_mult * 0.35) * mode_mult * branch_mult))
 
         return {
             "oxp_reward": quest_oxp,
@@ -3542,12 +3676,13 @@ class SkillUI:
             "attack_reward": quest_atk,
             "task_sxp_total": total_sxp,
             "linked_tasks": len(task_ids),
+            "branch_multiplier": branch_mult,
         }
 
     def open_add_quest_popup(self):
         popup = ctk.CTkToplevel(self.root)
         popup.title("Create Quest")
-        popup.geometry("560x700")
+        popup.geometry("620x880")
         popup.grab_set()
         popup.grid_columnconfigure(1, weight=1)
 
@@ -3602,6 +3737,8 @@ class SkillUI:
         )
         reward_preview.grid(row=6, column=0, columnspan=2, padx=20, pady=(8,4), sticky="w")
 
+        branch_controls = self._build_branching_quest_controls(popup, 7)
+
         task_vars = self._build_quest_task_picker(popup)
 
         def update_reward_preview(*_args):
@@ -3611,8 +3748,21 @@ class SkillUI:
             except ValueError:
                 target_count = 1
             selected_tasks = [task_id for task_id, var in task_vars.items() if var.get()]
+            quest_type = "branching" if branch_controls["enabled_var"].get() else "standard"
             rewards = self._calculate_quest_rewards(
-                selected_tasks, difficulty_var.get().lower(), progress_mode, target_count
+                selected_tasks,
+                difficulty_var.get().lower(),
+                progress_mode,
+                target_count,
+                quest_type,
+                branch_controls["selected_branch_var"].get(),
+                branch_controls["path_a_style_var"].get(),
+                branch_controls["path_b_style_var"].get(),
+            )
+            selected_branch_name = (
+                branch_controls["path_a_name_var"].get().strip() or "Path A"
+                if branch_controls["selected_branch_var"].get() == "a"
+                else branch_controls["path_b_name_var"].get().strip() or "Path B"
             )
             reward_preview.configure(
                 text=(
@@ -3620,6 +3770,10 @@ class SkillUI:
                     f"+{rewards['gold_reward']} Gold, +{rewards['attack_reward']} ATK\n"
                     f"Linked task SXP in this path: {rewards['task_sxp_total']}\n"
                     f"Balanced from {rewards['linked_tasks']} linked task(s)."
+                    + (
+                        f"\nActive path: {selected_branch_name}  |  x{rewards['branch_multiplier']:.2f} reward profile"
+                        if quest_type == "branching" else ""
+                    )
                 )
             )
 
@@ -3627,6 +3781,12 @@ class SkillUI:
             var.trace_add("write", update_reward_preview)
         mode_var.trace_add("write", update_reward_preview)
         difficulty_var.trace_add("write", update_reward_preview)
+        branch_controls["enabled_var"].trace_add("write", update_reward_preview)
+        branch_controls["path_a_name_var"].trace_add("write", update_reward_preview)
+        branch_controls["path_a_style_var"].trace_add("write", update_reward_preview)
+        branch_controls["path_b_name_var"].trace_add("write", update_reward_preview)
+        branch_controls["path_b_style_var"].trace_add("write", update_reward_preview)
+        branch_controls["selected_branch_var"].trace_add("write", update_reward_preview)
         target_entry.bind("<KeyRelease>", update_reward_preview)
         update_reward_preview()
 
@@ -3654,16 +3814,28 @@ class SkillUI:
             if progress_mode == "completion_count" and target_count < 1:
                 messagebox.showerror("Error", "Target count must be at least 1")
                 return
+            quest_type = "branching" if branch_controls["enabled_var"].get() else "standard"
+            branch_a_name = branch_controls["path_a_name_var"].get().strip() or "Path A"
+            branch_b_name = branch_controls["path_b_name_var"].get().strip() or "Path B"
+            branch_a_style = branch_controls["path_a_style_var"].get()
+            branch_b_style = branch_controls["path_b_style_var"].get()
+            selected_branch = branch_controls["selected_branch_var"].get()
+
+            if quest_type == "branching" and branch_a_name.lower() == branch_b_name.lower():
+                messagebox.showerror("Error", "The two path names should be different")
+                return
 
             rewards = self._calculate_quest_rewards(
-                selected_tasks, difficulty, progress_mode, target_count
+                selected_tasks, difficulty, progress_mode, target_count,
+                quest_type, selected_branch, branch_a_style, branch_b_style
             )
 
             try:
                 quest_id = self.db.add_quest(
                     title, description, category_var.get(), difficulty,
                     progress_mode, target_count,
-                    rewards["oxp_reward"], rewards["gold_reward"], rewards["attack_reward"]
+                    rewards["oxp_reward"], rewards["gold_reward"], rewards["attack_reward"],
+                    quest_type, branch_a_name, branch_a_style, branch_b_name, branch_b_style, selected_branch
                 )
             except Exception:
                 messagebox.showerror("Error", "Quest title must be unique")
@@ -3674,7 +3846,7 @@ class SkillUI:
 
         ctk.CTkButton(popup, text="Create Quest", height=36,
                       font=ctk.CTkFont(size=12, weight="bold"),
-                      command=save_quest).grid(row=10, column=0, columnspan=2, pady=18)
+                      command=save_quest).grid(row=11, column=0, columnspan=2, pady=18)
 
     def open_edit_quest_popup(self, quest_id):
         quest = self.db.get_quest(quest_id)
@@ -3682,7 +3854,7 @@ class SkillUI:
 
         popup = ctk.CTkToplevel(self.root)
         popup.title("Edit Quest")
-        popup.geometry("560x700")
+        popup.geometry("620x880")
         popup.grab_set()
         popup.grid_columnconfigure(1, weight=1)
 
@@ -3739,6 +3911,8 @@ class SkillUI:
         )
         reward_preview.grid(row=6, column=0, columnspan=2, padx=20, pady=(8,4), sticky="w")
 
+        branch_controls = self._build_branching_quest_controls(popup, 7, quest=quest)
+
         task_vars = self._build_quest_task_picker(popup, selected_task_ids)
 
         def update_reward_preview(*_args):
@@ -3748,8 +3922,21 @@ class SkillUI:
             except ValueError:
                 target_count = 1
             selected_tasks = [task_id for task_id, var in task_vars.items() if var.get()]
+            quest_type = "branching" if branch_controls["enabled_var"].get() else "standard"
             rewards = self._calculate_quest_rewards(
-                selected_tasks, difficulty_var.get().lower(), progress_mode, target_count
+                selected_tasks,
+                difficulty_var.get().lower(),
+                progress_mode,
+                target_count,
+                quest_type,
+                branch_controls["selected_branch_var"].get(),
+                branch_controls["path_a_style_var"].get(),
+                branch_controls["path_b_style_var"].get(),
+            )
+            selected_branch_name = (
+                branch_controls["path_a_name_var"].get().strip() or "Path A"
+                if branch_controls["selected_branch_var"].get() == "a"
+                else branch_controls["path_b_name_var"].get().strip() or "Path B"
             )
             reward_preview.configure(
                 text=(
@@ -3757,6 +3944,10 @@ class SkillUI:
                     f"+{rewards['gold_reward']} Gold, +{rewards['attack_reward']} ATK\n"
                     f"Linked task SXP in this path: {rewards['task_sxp_total']}\n"
                     f"Balanced from {rewards['linked_tasks']} linked task(s)."
+                    + (
+                        f"\nActive path: {selected_branch_name}  |  x{rewards['branch_multiplier']:.2f} reward profile"
+                        if quest_type == "branching" else ""
+                    )
                 )
             )
 
@@ -3764,6 +3955,12 @@ class SkillUI:
             var.trace_add("write", update_reward_preview)
         mode_var.trace_add("write", update_reward_preview)
         difficulty_var.trace_add("write", update_reward_preview)
+        branch_controls["enabled_var"].trace_add("write", update_reward_preview)
+        branch_controls["path_a_name_var"].trace_add("write", update_reward_preview)
+        branch_controls["path_a_style_var"].trace_add("write", update_reward_preview)
+        branch_controls["path_b_name_var"].trace_add("write", update_reward_preview)
+        branch_controls["path_b_style_var"].trace_add("write", update_reward_preview)
+        branch_controls["selected_branch_var"].trace_add("write", update_reward_preview)
         target_entry.bind("<KeyRelease>", update_reward_preview)
         update_reward_preview()
 
@@ -3792,16 +3989,28 @@ class SkillUI:
             if progress_mode == "completion_count" and target_count < 1:
                 messagebox.showerror("Error", "Target count must be at least 1")
                 return
+            quest_type = "branching" if branch_controls["enabled_var"].get() else "standard"
+            branch_a_name = branch_controls["path_a_name_var"].get().strip() or "Path A"
+            branch_b_name = branch_controls["path_b_name_var"].get().strip() or "Path B"
+            branch_a_style = branch_controls["path_a_style_var"].get()
+            branch_b_style = branch_controls["path_b_style_var"].get()
+            selected_branch = branch_controls["selected_branch_var"].get()
+
+            if quest_type == "branching" and branch_a_name.lower() == branch_b_name.lower():
+                messagebox.showerror("Error", "The two path names should be different")
+                return
 
             rewards = self._calculate_quest_rewards(
-                selected_tasks, difficulty, progress_mode, target_count
+                selected_tasks, difficulty, progress_mode, target_count,
+                quest_type, selected_branch, branch_a_style, branch_b_style
             )
 
             try:
                 self.db.update_quest(
                     quest_id, title, description, category_var.get(), difficulty,
                     progress_mode, target_count,
-                    rewards["oxp_reward"], rewards["gold_reward"], rewards["attack_reward"]
+                    rewards["oxp_reward"], rewards["gold_reward"], rewards["attack_reward"],
+                    quest_type, branch_a_name, branch_a_style, branch_b_name, branch_b_style, selected_branch
                 )
             except Exception:
                 messagebox.showerror("Error", "Quest title must be unique")
@@ -3812,7 +4021,7 @@ class SkillUI:
 
         ctk.CTkButton(popup, text="Save Quest", height=36,
                       font=ctk.CTkFont(size=12, weight="bold"),
-                      command=save_quest).grid(row=10, column=0, columnspan=2, pady=18)
+                      command=save_quest).grid(row=11, column=0, columnspan=2, pady=18)
 
     def delete_quest(self, quest_id):
         if messagebox.askyesno("Delete Quest", "Delete this quest and unlink its tasks?"):
